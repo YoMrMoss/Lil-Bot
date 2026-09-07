@@ -27,7 +27,7 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "companion_config.json"
-BUILD_VERSION = "1.4.0"
+BUILD_VERSION = "1.5.0"
 PROTOCOL_VERSION = 1
 VALID_STATES = {"idle", "typing", "browsing", "browsing_fast", "music", "gaming", "cat", "helper", "showoff", "crying", "nervous", "rage", "notification", "loading", "error", "sleep", "volume", "startup", "reconnect"}
 REACTION_PRIORITY = {"idle": 0, "application": 30, "browsing": 40, "typing": 50, "gaming": 60, "sleep": 70, "volume": 80, "after": 90, "manual": 100}
@@ -74,6 +74,7 @@ def load_config() -> dict:
         },
         "personality": "shy-curious-helper",
         "animation": {"transition_ms": 240, "pixel_shift": True, "after_reactions": True},
+        "serial": {"enabled": True, "port": "auto", "baud": 115200, "heartbeat_seconds": 0.5},
     }
     if CONFIG_PATH.exists():
         try:
@@ -111,6 +112,9 @@ class Runtime:
     weather_updated: float = 0.0
     weather_error: str = ""
     unread_notifications: int = 0
+    device_connected: bool = False
+    device_port: str = ""
+    device_last_seen: float = 0.0
     events: deque = field(default_factory=lambda: deque(maxlen=120), repr=False)
     scroll_events: deque = field(default_factory=lambda: deque(maxlen=40), repr=False)
     lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
@@ -142,6 +146,11 @@ class Runtime:
                 },
                 "display": profile,
                 "unread_notifications": self.unread_notifications,
+                "device": {
+                    "connected": self.device_connected,
+                    "port": self.device_port,
+                    "last_seen": self.device_last_seen,
+                },
                 "personality": APP_CONFIG.get("personality", "shy-curious-helper"),
                 "reaction": {"source": self.source, "priority": self.priority},
                 "modifiers": {
@@ -157,6 +166,21 @@ class Runtime:
                     "scroll_age": round(max(0.0, now - self.last_scroll), 2) if self.last_scroll else None,
                 },
             }
+
+    def display_frame(self) -> dict:
+        snapshot = self.snapshot()
+        keys = ("protocol_version", "sequence", "state", "display", "modifiers", "volume_level", "volume_muted", "unread_notifications")
+        return {key: snapshot[key] for key in keys}
+
+    def device_status(self, connected: bool, port: str = "", reason: str = "") -> None:
+        with self.lock:
+            changed = connected != self.device_connected or port != self.device_port
+            self.device_connected = connected
+            self.device_port = port if connected else ""
+            if connected:
+                self.device_last_seen = time.time()
+            if changed:
+                self.events.appendleft({"time": time.time(), "state": self.state, "reason": reason or ("display connected" if connected else "display disconnected"), "source": "device", "priority": self.priority, "sequence": self.sequence})
 
     def set_state(self, state: str, reason: str, source: str = "application", priority: int | None = None) -> None:
         with self.lock:
@@ -483,6 +507,75 @@ def weather_loop(config: dict, stop: threading.Event) -> None:
         stop.wait(refresh)
 
 
+def candidate_serial_ports(preferred: str) -> list[str]:
+    """Return explicit or likely Espressif ports without opening unrelated devices."""
+    if preferred and preferred.lower() != "auto":
+        return [preferred]
+    try:
+        from serial.tools import list_ports  # type: ignore
+
+        likely = []
+        for port in list_ports.comports():
+            description = f"{port.description} {port.manufacturer or ''}".lower()
+            if port.vid == 0x303A or any(token in description for token in ("espressif", "esp32", "usb jtag", "usb serial")):
+                likely.append(port.device)
+        return likely
+    except Exception:
+        return []
+
+
+def serial_bridge_loop(config: dict, stop: threading.Event) -> None:
+    """Stream compact display frames and receive touch gestures over USB CDC."""
+    serial_config = config.get("serial", {})
+    if not serial_config.get("enabled", True):
+        return
+    try:
+        import serial  # type: ignore
+    except ImportError:
+        print("USB display bridge unavailable: install requirements.txt (pyserial).")
+        return
+    baud = int(serial_config.get("baud", 115200))
+    interval = max(0.1, float(serial_config.get("heartbeat_seconds", 0.5)))
+    preferred = str(serial_config.get("port", "auto"))
+    while not stop.is_set():
+        connection = None
+        port = ""
+        for port in candidate_serial_ports(preferred):
+            try:
+                connection = serial.Serial(port, baud, timeout=0.05, write_timeout=0.5)
+                break
+            except (OSError, serial.SerialException):
+                connection = None
+        if connection is None:
+            RUNTIME.device_status(False, reason="waiting for Lil Bot USB display")
+            stop.wait(1.0)
+            continue
+        RUNTIME.device_status(True, port, f"Lil Bot display connected on {port}")
+        print(f"Lil Bot display connected on {port}.")
+        next_send = 0.0
+        try:
+            while not stop.is_set():
+                now = time.monotonic()
+                if now >= next_send:
+                    payload = json.dumps(RUNTIME.display_frame(), separators=(",", ":")) + "\n"
+                    connection.write(payload.encode("utf-8"))
+                    next_send = now + interval
+                line = connection.readline().decode("utf-8", errors="replace").strip()
+                if line:
+                    with RUNTIME.lock:
+                        RUNTIME.device_last_seen = time.time()
+                    if line.startswith("TOUCH:"):
+                        gesture = line.partition(":")[2].lower()
+                        if gesture in {"tap", "double", "hold"}:
+                            RUNTIME.touch_reaction(gesture)
+                stop.wait(0.01)
+        except (OSError, serial.SerialException) as exc:
+            print(f"Lil Bot display disconnected: {exc}")
+        finally:
+            connection.close()
+            RUNTIME.device_status(False, reason=f"Lil Bot display disconnected from {port}")
+
+
 class Handler(SimpleHTTPRequestHandler):
     server_version = "LilBotCompanion/0.1"
 
@@ -511,8 +604,7 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_json(RUNTIME.snapshot())
             return
         if urlparse(self.path).path == "/api/frame":
-            snapshot = RUNTIME.snapshot()
-            self.send_json({key: snapshot[key] for key in ("protocol_version", "sequence", "state", "display", "modifiers", "volume_level", "volume_muted", "unread_notifications")})
+            self.send_json(RUNTIME.display_frame())
             return
         if urlparse(self.path).path == "/api/health":
             self.send_json({"ok": True, "version": 1})
@@ -591,6 +683,8 @@ def main() -> int:
     detector.start()
     weather_worker = threading.Thread(target=weather_loop, args=(config, stop), daemon=True)
     weather_worker.start()
+    serial_worker = threading.Thread(target=serial_bridge_loop, args=(config, stop), daemon=True)
+    serial_worker.start()
     server = ThreadingHTTPServer((host, port), Handler)
     url = f"http://{host}:{port}/display-preview.html?v={BUILD_VERSION}"
     print(f"Lil Bot companion running at {url}")

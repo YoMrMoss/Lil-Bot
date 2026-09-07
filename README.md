@@ -69,7 +69,7 @@ as though it were the ESP32 display.
 5. Use the state buttons to simulate events that are not detected yet.
 6. Close the command window or press `Ctrl+C` to stop it.
 
-The current simulator is labeled **BUILD 1.4.0** at the top. When updating, close
+The current simulator is labeled **BUILD 1.5.0** at the top. When updating, close
 the previous Lil Bot command window and extract the new ZIP into a new folder
 instead of merging it into an older copy. If the screen still has side grips or
 a USB tab, an older preview is running.
@@ -158,7 +158,7 @@ flip and clears notices, a double tap calls up the eager-helper face, and a hold
 briefly puts Lil Bot to sleep. After a table flip, the bot has a short nervous
 after-reaction before returning to the highest-priority live computer state.
 
-Build 1.4 uses an explicit reaction-priority resolver so temporary events do not
+Build 1.5 uses an explicit reaction-priority resolver so temporary events do not
 fight with application faces. Diagnostics show the winning source and priority.
 Face changes ease in instead of popping, while a two-pixel idle drift and the
 existing automatic dimming reduce static-screen wear.
@@ -170,7 +170,8 @@ including the USB cable disguised as a safely strain-relieved headphone cord.
 
 The repository includes a release workflow and a prompted startup updater.
 Changing `VERSION` on `main` or pushing a version tag automatically packages the
-streamlined Windows companion and publishes checksums. Before Lil Bot starts, it checks GitHub Releases and offers to install
+streamlined Windows companion, compiles an ESP32 firmware binary, and publishes
+checksums. Before Lil Bot starts, it checks GitHub Releases and offers to install
 new checksum-verified builds while preserving local settings and a rollback
 backup. See `GITHUB_UPDATES.md` for the staged path toward verified USB
 firmware updates after the board arrives. Automatic firmware flashing remains
@@ -215,11 +216,13 @@ the approved wide-set face.
 ## Planned architecture
 
 ```text
-Windows companion -> USB serial state commands -> ESP32 firmware -> animated face
+Windows activity -> reaction resolver -> USB-C serial -> ESP32 face renderer
 ```
 
-The Windows companion will eventually detect media playback, configured game
-processes, keyboard/mouse idle time, lock state and selected system events.
+The Windows companion detects media playback, configured games, browser
+scrolling, keyboard/mouse activity, volume changes, and idle time. The ESP32
+keeps rendering locally if the companion briefly disconnects and shows a
+reconnect cue after its heartbeat expires.
 
 ## Project phases
 

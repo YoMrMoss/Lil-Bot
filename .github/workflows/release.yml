@@ -27,11 +27,21 @@ jobs:
           else
             echo "tag=v$(tr -d '[:space:]' < VERSION)" >> "$GITHUB_OUTPUT"
           fi
+      - name: Build ESP32 firmware
+        shell: bash
+        run: |
+          python -m pip install platformio
+          python tools/generate_face_assets.py
+          platformio run --project-dir firmware
+          cp firmware/.pio/build/lilygo-t-display-s3-touch/firmware.bin firmware/lilbot-firmware.bin
       - name: Package Windows companion
         shell: bash
         run: |
           mkdir -p release/LilBot
-          cp VERSION companion.py companion_config.json display-preview.html requirements.txt start_lilbot.bat github_updater.py check_for_updates.py check_for_updates.bat README.md ENCLOSURE_NOTES.md GITHUB_UPDATES.md release/LilBot/
+          cp VERSION companion.py companion_config.json display-preview.html requirements.txt start_lilbot.bat github_updater.py check_for_updates.py check_for_updates.bat README.md ENCLOSURE_NOTES.md GITHUB_UPDATES.md PROTOCOL.md release/LilBot/
+          mkdir -p release/LilBot/firmware
+          cp firmware/platformio.ini firmware/partitions.csv firmware/README.md release/LilBot/firmware/
+          cp -r firmware/src firmware/include firmware/data release/LilBot/firmware/
           cd release
           zip -r "LilBot-Windows-${{ steps.version.outputs.tag }}.zip" LilBot
           sha256sum "LilBot-Windows-${{ steps.version.outputs.tag }}.zip" > SHA256SUMS.txt

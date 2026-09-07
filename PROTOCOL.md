@@ -18,7 +18,15 @@ ESP32-S3 firmware consume the same resolved display frame from `GET /api/frame`.
 
 ## Transport
 
-During browser testing this is JSON over HTTP. The USB firmware transport will
+During browser testing this is JSON over HTTP. Firmware 1.5 streams the same
+compact JSON as newline-delimited messages over USB CDC at 115200 baud.
+
+The board answers with `READY:LILBOT/1`, repeats `HELLO:LILBOT/1` as its link
+heartbeat, acknowledges accepted frames with `ACK:<sequence>`, and reports
+screen interaction as `TOUCH:tap`, `TOUCH:double`, or `TOUCH:hold`. The Windows
+bridge auto-discovers Espressif USB serial ports and reconnects without restart.
+
+The USB firmware transport will
 send the same object as one UTF-8 JSON line terminated by `\n`. A receiver must
 ignore duplicate `sequence` values, retain the last valid frame during a brief
 disconnect, and show `reconnect` after communication resumes.
@@ -42,5 +50,5 @@ implemented, the simulator sends the equivalent JSON to `POST /api/touch`:
 Tap clears notifications and triggers the table flip. Double tap shows the
 helper face. Hold temporarily shows sleep. Unknown gestures receive HTTP 400.
 
-Firmware flashing remains disabled until board identity, recovery, and power-
+Automatic firmware flashing remains disabled until board identity, recovery, and power-
 loss behavior are verified on the physical T-Display-S3.

@@ -13,28 +13,30 @@
 
 ## Windows companion
 
-- [ ] Global keyboard and mouse activity
+- [x] Global keyboard and mouse activity
 - [ ] Idle and lock-state detection
-- [ ] Media playback detection
-- [ ] Configurable game-process detection
-- [ ] Browser activity state
-- [ ] USB serial state transport
+- [x] Media playback detection
+- [x] Configurable game-process detection
+- [x] Browser activity state
+- [x] USB serial state transport
 - [ ] Start automatically with Windows
 
 ## ESP32 firmware
 
-- [ ] ST7789 display setup
-- [ ] CST816 touch input
-- [ ] Animation state machine
-- [ ] USB command parser
-- [ ] Offline personality behavior
-- [ ] Firmware upload guide
+- [x] ST7789 display setup
+- [x] CST816 touch input
+- [x] Animation state machine
+- [x] USB command parser
+- [x] Offline personality behavior
+- [x] Firmware upload guide
+- [x] Watchdog and dual OTA partition foundation
+- [ ] Verify display, touch orientation, and recovery on physical board
+- [ ] Enable checksum-verified automatic firmware flashing after hardware recovery test
 
 ## Physical design
 
 - [ ] Confirm screen orientation
 - [ ] Prototype enclosure dimensions
-- [ ] USB and button access
+- [x] Straight USB-C and button access planned
 - [ ] Weighted feet
 - [ ] Optional physical headphones or accent pieces
-

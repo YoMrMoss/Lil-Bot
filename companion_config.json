@@ -58,6 +58,12 @@
     "pixel_shift": true,
     "after_reactions": true
   },
+  "serial": {
+    "enabled": true,
+    "port": "auto",
+    "baud": 115200,
+    "heartbeat_seconds": 0.5
+  },
   "updates": {
     "enabled": true,
     "github_repository": "YoMrMoss/Lil-Bot",
