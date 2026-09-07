@@ -69,7 +69,7 @@ as though it were the ESP32 display.
 5. Use the state buttons to simulate events that are not detected yet.
 6. Close the command window or press `Ctrl+C` to stop it.
 
-The current simulator is labeled **BUILD 1.0.1** at the top. When updating, close
+The current simulator is labeled **BUILD 1.1.0** at the top. When updating, close
 the previous Lil Bot command window and extract the new ZIP into a new folder
 instead of merging it into an older copy. If the screen still has side grips or
 a USB tab, an older preview is running.
@@ -89,7 +89,7 @@ Default application reactions:
 | Discord | Notification/attention |
 | World of Warcraft (Retail or Classic) | Gaming |
 | League of Legends (client or game) | Gaming |
-| Volume up/down/mute media keys | Temporary volume overlay |
+| Volume up/down/mute media keys | Live ten-step volume meter |
 
 Typing and scrolling take priority over Chrome's general browsing expression,
 so those actions remain visibly reactive. The live status line also reports the
@@ -100,6 +100,12 @@ Merely leaving Chrome, Edge, or Firefox open no longer holds the browsing face.
 Normal scroll bursts briefly show reading glasses; five or more scroll events
 within 0.75 seconds trigger the racing visor. Both return to idle after the
 configured `browsing_hold_seconds` delay.
+
+The gaming expression is the compact HUD `[+..••]`. The emoticons
+`≽^•⩊•^≼` and `(ദ്ദി˙ᗜ˙)` appear as curious and eager-helper idle cameos and
+can also be selected manually in the simulator. The volume overlay reads the
+Windows master level: fewer illuminated bars mean quieter, all ten mean loud,
+and mute uses a pink strike-through.
 
 The display preview also includes transition scenarios for music plus volume,
 gaming plus Discord, and browsing plus typing/loading. These verify that a

@@ -27,8 +27,8 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "companion_config.json"
-BUILD_VERSION = "1.0.1"
-VALID_STATES = {"idle", "typing", "browsing", "browsing_fast", "music", "gaming", "notification", "loading", "error", "sleep", "volume", "startup", "reconnect"}
+BUILD_VERSION = "1.1.0"
+VALID_STATES = {"idle", "typing", "browsing", "browsing_fast", "music", "gaming", "cat", "helper", "notification", "loading", "error", "sleep", "volume", "startup", "reconnect"}
 
 
 def load_config() -> dict:
@@ -91,6 +91,8 @@ class Runtime:
     last_scroll: float = 0.0
     last_volume: float = 0.0
     volume_direction: str = "none"
+    volume_level: float = 0.5
+    volume_muted: bool = False
     manual_state: str | None = None
     manual_until: float = 0.0
     connected_at: float = field(default_factory=time.time)
@@ -119,6 +121,8 @@ class Runtime:
                 "server_time": time.time(),
                 "protocol": f"STATE:{self.state.upper()}",
                 "volume_direction": self.volume_direction,
+                "volume_level": round(self.volume_level, 3),
+                "volume_muted": self.volume_muted,
                 "ambient": {
                     "temperature": self.temperature,
                     "temperature_unit": self.temperature_unit,
@@ -221,10 +225,31 @@ def active_process_name() -> str:
         return "unknown"
 
 
+def read_system_volume(fallback_level: float, fallback_muted: bool) -> tuple[float, bool]:
+    """Read Windows master volume through Core Audio, with a safe fallback."""
+    if platform.system() != "Windows":
+        return fallback_level, fallback_muted
+    try:
+        from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume  # type: ignore
+
+        device = AudioUtilities.GetSpeakers()
+        endpoint = getattr(device, "EndpointVolume", None)
+        if endpoint is None:
+            from comtypes import CLSCTX_ALL  # type: ignore
+
+            interface = device.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+            endpoint = ctypes.cast(interface, ctypes.POINTER(IAudioEndpointVolume))
+        return max(0.0, min(1.0, float(endpoint.GetMasterVolumeLevelScalar()))), bool(endpoint.GetMute())
+    except Exception:
+        return fallback_level, fallback_muted
+
+
 def install_activity_listeners() -> None:
     """Listen only for event timestamps; never inspect or store key values."""
     try:
         from pynput import keyboard, mouse  # type: ignore
+
+        RUNTIME.volume_level, RUNTIME.volume_muted = read_system_volume(0.5, False)
 
         volume_keys = {
             getattr(keyboard.Key, "media_volume_up", None): "up",
@@ -236,8 +261,24 @@ def install_activity_listeners() -> None:
         def key_event(key):
             now = time.monotonic()
             if key in volume_keys:
-                RUNTIME.last_volume = now
-                RUNTIME.volume_direction = volume_keys[key]
+                direction = volume_keys[key]
+                with RUNTIME.lock:
+                    RUNTIME.last_volume = now
+                    RUNTIME.volume_direction = direction
+                    if direction == "up":
+                        RUNTIME.volume_level = min(1.0, RUNTIME.volume_level + 0.02)
+                        RUNTIME.volume_muted = False
+                    elif direction == "down":
+                        RUNTIME.volume_level = max(0.0, RUNTIME.volume_level - 0.02)
+                    else:
+                        RUNTIME.volume_muted = not RUNTIME.volume_muted
+
+                def refresh_volume():
+                    level, muted = read_system_volume(RUNTIME.volume_level, RUNTIME.volume_muted)
+                    with RUNTIME.lock:
+                        RUNTIME.volume_level, RUNTIME.volume_muted = level, muted
+
+                threading.Timer(0.08, refresh_volume).start()
                 return
             RUNTIME.last_key = now
 
@@ -277,7 +318,8 @@ def detection_loop(config: dict, stop: threading.Event) -> None:
         if manual:
             RUNTIME.set_state(manual, "temporary simulated event")
         elif now - RUNTIME.last_volume <= 0.9:
-            RUNTIME.set_state("volume", f"system volume {RUNTIME.volume_direction}")
+            muted = " muted" if RUNTIME.volume_muted else ""
+            RUNTIME.set_state("volume", f"system volume {round(RUNTIME.volume_level * 100)}%{muted}")
         elif idle >= float(config["sleep_after_seconds"]):
             RUNTIME.set_state("sleep", "computer idle timeout")
         elif process in games or app_states.get(process) == "gaming":
