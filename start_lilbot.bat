@@ -1,8 +1,8 @@
 @echo off
 setlocal
-title Lil Bot Companion 0.8
+title Lil Bot Companion 0.9
 cd /d "%~dp0"
-echo Starting Lil Bot build 0.8...
+echo Starting Lil Bot build 0.9...
 py -m pip install -r requirements.txt
 if errorlevel 1 (
   echo.

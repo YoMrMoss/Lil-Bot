@@ -69,7 +69,7 @@ as though it were the ESP32 display.
 5. Use the state buttons to simulate events that are not detected yet.
 6. Close the command window or press `Ctrl+C` to stop it.
 
-The current simulator is labeled **BUILD 0.8** at the top. When updating, close
+The current simulator is labeled **BUILD 0.9** at the top. When updating, close
 the previous Lil Bot command window and extract the new ZIP into a new folder
 instead of merging it into an older copy. If the screen still has side grips or
 a USB tab, an older preview is running.
@@ -83,7 +83,9 @@ Default application reactions:
 | Application/input | Display state |
 | --- | --- |
 | Spotify | Music |
-| Google Chrome | Browsing |
+| Google Chrome, inactive | Idle |
+| Google Chrome, normal scrolling | Reading glasses |
+| Google Chrome, rapid scrolling | Racing visor |
 | Discord | Notification/attention |
 | World of Warcraft (Retail or Classic) | Gaming |
 | League of Legends (client or game) | Gaming |
@@ -94,6 +96,11 @@ so those actions remain visibly reactive. The live status line also reports the
 foreground process and whether it most recently detected typing, scrolling,
 mouse movement, or no active input.
 
+Merely leaving Chrome, Edge, or Firefox open no longer holds the browsing face.
+Normal scroll bursts briefly show reading glasses; five or more scroll events
+within 0.75 seconds trigger the racing visor. Both return to idle after the
+configured `browsing_hold_seconds` delay.
+
 The display preview also includes transition scenarios for music plus volume,
 gaming plus Discord, and browsing plus typing/loading. These verify that a
 temporary reaction returns to the correct application face.
@@ -102,6 +109,11 @@ During idle, Lil Bot alternates brief full-screen time and local-temperature
 cards before returning to the approved face. Weather coordinates, units, and
 refresh timing are configured under `weather` in `companion_config.json`.
 Temperature data is provided by Open-Meteo under CC BY 4.0.
+
+Public releases keep weather disabled and use blank coordinates so personal
+location data is never committed to GitHub. Set `enabled` to `true` and add your
+coordinates only in the local `companion_config.json` on the computer running
+Lil Bot.
 
 Presence features now include a shy startup hello, reconnect reaction, unread
 notification badge, quiet hours, automatic day/night brightness, and a live

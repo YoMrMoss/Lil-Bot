@@ -27,8 +27,8 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "companion_config.json"
-BUILD_VERSION = "0.8"
-VALID_STATES = {"idle", "typing", "browsing", "music", "gaming", "notification", "loading", "error", "sleep", "volume", "startup", "reconnect"}
+BUILD_VERSION = "0.9"
+VALID_STATES = {"idle", "typing", "browsing", "browsing_fast", "music", "gaming", "notification", "loading", "error", "sleep", "volume", "startup", "reconnect"}
 
 
 def load_config() -> dict:
@@ -40,7 +40,6 @@ def load_config() -> dict:
         "sleep_after_seconds": 300,
         "application_states": {
             "spotify.exe": "music",
-            "chrome.exe": "browsing",
             "discord.exe": "notification",
             "wow.exe": "gaming",
             "wowclassic.exe": "gaming",
@@ -103,6 +102,7 @@ class Runtime:
     weather_error: str = ""
     unread_notifications: int = 0
     events: deque = field(default_factory=lambda: deque(maxlen=120), repr=False)
+    scroll_events: deque = field(default_factory=lambda: deque(maxlen=40), repr=False)
     lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def snapshot(self) -> dict:
@@ -245,7 +245,10 @@ def install_activity_listeners() -> None:
             RUNTIME.last_mouse = time.monotonic()
 
         def scroll_event(*_args):
-            RUNTIME.last_mouse = RUNTIME.last_scroll = time.monotonic()
+            now = time.monotonic()
+            with RUNTIME.lock:
+                RUNTIME.last_mouse = RUNTIME.last_scroll = now
+                RUNTIME.scroll_events.append(now)
 
         keyboard.Listener(on_press=key_event).start()
         mouse.Listener(on_move=mouse_event, on_click=mouse_event, on_scroll=scroll_event).start()
@@ -267,6 +270,7 @@ def detection_loop(config: dict, stop: threading.Event) -> None:
         with RUNTIME.lock:
             RUNTIME.active_process, RUNTIME.idle_seconds = process, idle
             manual = RUNTIME.manual_state if now < RUNTIME.manual_until else None
+            scroll_burst = sum(event >= now - 0.75 for event in RUNTIME.scroll_events)
             if not manual:
                 RUNTIME.manual_state = None
 
@@ -283,7 +287,10 @@ def detection_loop(config: dict, stop: threading.Event) -> None:
         elif now - RUNTIME.last_key <= float(config["typing_hold_seconds"]):
             RUNTIME.set_state("typing", "recent keyboard activity")
         elif process in browsers and now - RUNTIME.last_scroll <= float(config["browsing_hold_seconds"]):
-            RUNTIME.set_state("browsing", "browser scrolling")
+            if scroll_burst >= 5:
+                RUNTIME.set_state("browsing_fast", f"rapid browser scrolling: {scroll_burst} events")
+            else:
+                RUNTIME.set_state("browsing", "browser reading scroll")
         elif process in app_states and app_states[process] in VALID_STATES:
             RUNTIME.set_state(app_states[process], f"application active: {process}")
         else:

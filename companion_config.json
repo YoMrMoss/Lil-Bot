@@ -6,7 +6,6 @@
   "sleep_after_seconds": 300,
   "application_states": {
     "spotify.exe": "music",
-    "chrome.exe": "browsing",
     "discord.exe": "notification",
     "wow.exe": "gaming",
     "wowclassic.exe": "gaming",
