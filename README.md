@@ -69,7 +69,7 @@ as though it were the ESP32 display.
 5. Use the state buttons to simulate events that are not detected yet.
 6. Close the command window or press `Ctrl+C` to stop it.
 
-The current simulator is labeled **BUILD 0.9** at the top. When updating, close
+The current simulator is labeled **BUILD 1.0.0** at the top. When updating, close
 the previous Lil Bot command window and extract the new ZIP into a new folder
 instead of merging it into an older copy. If the screen still has side grips or
 a USB tab, an older preview is running.
@@ -132,9 +132,11 @@ including the USB cable disguised as a safely strain-relieved headphone cord.
 
 ## GitHub releases and updates
 
-The repository now includes a release workflow and `check_for_updates.bat`.
+The repository includes a release workflow and a prompted startup updater.
 Version tags automatically package the streamlined Windows companion and publish
-checksums. See `GITHUB_UPDATES.md` for the staged path toward verified USB
+checksums. Before Lil Bot starts, it checks GitHub Releases and offers to install
+new checksum-verified builds while preserving local settings and a rollback
+backup. See `GITHUB_UPDATES.md` for the staged path toward verified USB
 firmware updates after the board arrives. Automatic firmware flashing remains
 disabled until the physical board and recovery process can be tested safely.
 

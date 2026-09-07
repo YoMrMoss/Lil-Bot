@@ -1,8 +1,10 @@
 @echo off
 setlocal
-title Lil Bot Companion 0.9
+title Lil Bot Companion 1.0.0
 cd /d "%~dp0"
-echo Starting Lil Bot build 0.9...
+echo Starting Lil Bot build 1.0.0...
+py github_updater.py
+if errorlevel 1 echo Update check was skipped; starting the installed version.
 py -m pip install -r requirements.txt
 if errorlevel 1 (
   echo.

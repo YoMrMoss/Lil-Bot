@@ -12,8 +12,9 @@ Release. Once firmware development begins, the same release can also contain
 
 ## Safe update stages
 
-- **Now:** `check_for_updates.bat` checks GitHub and downloads the latest ZIP,
-  but never replaces running files automatically.
+- **Now:** `start_lilbot.bat` checks GitHub Releases before launching. When a
+  newer checksum-verified version exists, it asks before installing it, keeps a
+  local backup, preserves `companion_config.json`, and then starts the update.
 - **After the board arrives:** add USB serial discovery and a manual **Update
   board** action using Espressif's flashing utility.
 - **Later:** offer one-click updates only after verifying the release checksum,
@@ -24,4 +25,3 @@ Release. Once firmware development begins, the same release can also contain
 Automatic unattended flashing is intentionally not enabled yet. Installing the
 wrong binary or losing power during a flash could leave the board needing a
 manual recovery.
-

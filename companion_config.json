@@ -54,8 +54,9 @@
   },
   "personality": "shy-curious-helper",
   "updates": {
+    "enabled": true,
     "github_repository": "YoMrMoss/Lil-Bot",
-    "check_on_start": false,
+    "check_on_start": true,
     "automatic_companion_install": false,
     "automatic_firmware_flash": false
   }

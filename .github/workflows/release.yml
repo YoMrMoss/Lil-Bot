@@ -17,7 +17,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p release/LilBot
-          cp companion.py companion_config.json display-preview.html requirements.txt start_lilbot.bat README.md ENCLOSURE_NOTES.md release/LilBot/
+          cp VERSION companion.py companion_config.json display-preview.html requirements.txt start_lilbot.bat github_updater.py check_for_updates.py check_for_updates.bat README.md ENCLOSURE_NOTES.md GITHUB_UPDATES.md release/LilBot/
           cd release
           zip -r "LilBot-Windows-${GITHUB_REF_NAME}.zip" LilBot
           sha256sum "LilBot-Windows-${GITHUB_REF_NAME}.zip" > SHA256SUMS.txt
@@ -34,4 +34,3 @@ jobs:
             release/SHA256SUMS.txt
             release/lilbot-firmware.bin
           fail_on_unmatched_files: false
-
