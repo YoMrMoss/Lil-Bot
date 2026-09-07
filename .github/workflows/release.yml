@@ -1,0 +1,37 @@
+name: Build Lil Bot release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package Windows companion
+        shell: bash
+        run: |
+          mkdir -p release/LilBot
+          cp companion.py companion_config.json display-preview.html requirements.txt start_lilbot.bat README.md ENCLOSURE_NOTES.md release/LilBot/
+          cd release
+          zip -r "LilBot-Windows-${GITHUB_REF_NAME}.zip" LilBot
+          sha256sum "LilBot-Windows-${GITHUB_REF_NAME}.zip" > SHA256SUMS.txt
+          if [ -f ../firmware/lilbot-firmware.bin ]; then
+            cp ../firmware/lilbot-firmware.bin .
+            sha256sum lilbot-firmware.bin >> SHA256SUMS.txt
+          fi
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            release/LilBot-Windows-*.zip
+            release/SHA256SUMS.txt
+            release/lilbot-firmware.bin
+          fail_on_unmatched_files: false
+

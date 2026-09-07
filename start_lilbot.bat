@@ -1,0 +1,19 @@
+@echo off
+setlocal
+title Lil Bot Companion 0.8
+cd /d "%~dp0"
+echo Starting Lil Bot build 0.8...
+py -m pip install -r requirements.txt
+if errorlevel 1 (
+  echo.
+  echo Could not install Lil Bot requirements.
+  pause
+  exit /b 1
+)
+py companion.py
+if errorlevel 1 (
+  echo.
+  echo If port 8765 is already in use, close the older Lil Bot command window
+  echo and run this file again.
+  pause
+)

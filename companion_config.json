@@ -1,0 +1,63 @@
+{
+  "host": "127.0.0.1",
+  "port": 8765,
+  "typing_hold_seconds": 1.1,
+  "browsing_hold_seconds": 1.4,
+  "sleep_after_seconds": 300,
+  "application_states": {
+    "spotify.exe": "music",
+    "chrome.exe": "browsing",
+    "discord.exe": "notification",
+    "wow.exe": "gaming",
+    "wowclassic.exe": "gaming",
+    "wowclassic_t.exe": "gaming",
+    "leagueclient.exe": "gaming",
+    "leagueclientux.exe": "gaming",
+    "league of legends.exe": "gaming"
+  },
+  "game_processes": [
+    "wow.exe",
+    "steam.exe"
+  ],
+  "browser_processes": [
+    "chrome.exe",
+    "msedge.exe",
+    "firefox.exe"
+  ],
+  "media_processes": [
+    "spotify.exe",
+    "musicbee.exe",
+    "vlc.exe"
+  ],
+  "open_browser_on_start": true,
+  "weather": {
+    "enabled": false,
+    "location_label": "Set your location",
+    "latitude": 0.0,
+    "longitude": 0.0,
+    "temperature_unit": "fahrenheit",
+    "refresh_seconds": 900
+  },
+  "ambient_card_interval_seconds": 60,
+  "ambient_card_duration_seconds": 6,
+  "quiet_hours": {
+    "enabled": true,
+    "start": "22:30",
+    "end": "07:00",
+    "brightness": 20
+  },
+  "automatic_brightness": {
+    "enabled": true,
+    "day_start": "07:00",
+    "night_start": "19:30",
+    "day_brightness": 100,
+    "night_brightness": 45
+  },
+  "personality": "shy-curious-helper",
+  "updates": {
+    "github_repository": "YoMrMoss/Lil-Bot",
+    "check_on_start": false,
+    "automatic_companion_install": false,
+    "automatic_firmware_flash": false
+  }
+}
