@@ -53,6 +53,11 @@
     "night_brightness": 45
   },
   "personality": "shy-curious-helper",
+  "animation": {
+    "transition_ms": 240,
+    "pixel_shift": true,
+    "after_reactions": true
+  },
   "updates": {
     "enabled": true,
     "github_repository": "YoMrMoss/Lil-Bot",

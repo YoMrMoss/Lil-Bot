@@ -27,8 +27,10 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "companion_config.json"
-BUILD_VERSION = "1.3.1"
+BUILD_VERSION = "1.4.0"
+PROTOCOL_VERSION = 1
 VALID_STATES = {"idle", "typing", "browsing", "browsing_fast", "music", "gaming", "cat", "helper", "showoff", "crying", "nervous", "rage", "notification", "loading", "error", "sleep", "volume", "startup", "reconnect"}
+REACTION_PRIORITY = {"idle": 0, "application": 30, "browsing": 40, "typing": 50, "gaming": 60, "sleep": 70, "volume": 80, "after": 90, "manual": 100}
 
 
 def load_config() -> dict:
@@ -71,6 +73,7 @@ def load_config() -> dict:
             "night_brightness": 45,
         },
         "personality": "shy-curious-helper",
+        "animation": {"transition_ms": 240, "pixel_shift": True, "after_reactions": True},
     }
     if CONFIG_PATH.exists():
         try:
@@ -96,6 +99,10 @@ class Runtime:
     music_playing: bool = False
     manual_state: str | None = None
     manual_until: float = 0.0
+    after_state: str | None = None
+    after_until: float = 0.0
+    source: str = "startup"
+    priority: int = 0
     connected_at: float = field(default_factory=time.time)
     sequence: int = 0
     temperature: float | None = None
@@ -120,7 +127,8 @@ class Runtime:
                 "idle_seconds": round(self.idle_seconds, 1),
                 "sequence": self.sequence,
                 "server_time": time.time(),
-                "protocol": f"STATE:{self.state.upper()}",
+                "protocol": f"LILBOT/{PROTOCOL_VERSION} STATE:{self.state.upper()} SEQ:{self.sequence}",
+                "protocol_version": PROTOCOL_VERSION,
                 "volume_direction": self.volume_direction,
                 "volume_level": round(self.volume_level, 3),
                 "volume_muted": self.volume_muted,
@@ -135,6 +143,14 @@ class Runtime:
                 "display": profile,
                 "unread_notifications": self.unread_notifications,
                 "personality": APP_CONFIG.get("personality", "shy-curious-helper"),
+                "reaction": {"source": self.source, "priority": self.priority},
+                "modifiers": {
+                    "music_bob": self.music_playing,
+                    "quiet_hours": profile["quiet_hours"],
+                    "brightness": profile["brightness"],
+                    "pixel_shift": bool(APP_CONFIG.get("animation", {}).get("pixel_shift", True)),
+                    "transition_ms": int(APP_CONFIG.get("animation", {}).get("transition_ms", 240)),
+                },
                 "activity": {
                     "key_age": round(max(0.0, now - self.last_key), 2) if self.last_key else None,
                     "mouse_age": round(max(0.0, now - self.last_mouse), 2) if self.last_mouse else None,
@@ -142,12 +158,13 @@ class Runtime:
                 },
             }
 
-    def set_state(self, state: str, reason: str) -> None:
+    def set_state(self, state: str, reason: str, source: str = "application", priority: int | None = None) -> None:
         with self.lock:
-            if state != self.state or reason != self.reason:
-                self.state, self.reason = state, reason
+            resolved_priority = REACTION_PRIORITY.get(source, 0) if priority is None else priority
+            if state != self.state or reason != self.reason or source != self.source:
+                self.state, self.reason, self.source, self.priority = state, reason, source, resolved_priority
                 self.sequence += 1
-                self.events.appendleft({"time": time.time(), "state": state, "reason": reason, "sequence": self.sequence})
+                self.events.appendleft({"time": time.time(), "state": state, "reason": reason, "source": source, "priority": resolved_priority, "sequence": self.sequence})
 
     def diagnostic_log(self) -> list[dict]:
         with self.lock:
@@ -163,17 +180,34 @@ class Runtime:
             self.unread_notifications = 0
             self.events.appendleft({"time": time.time(), "state": self.state, "reason": "notifications cleared", "sequence": self.sequence})
 
-    def touch_reaction(self, duration: float = 2.4) -> int:
-        """Clear unread notices and show the fitted table-flip reaction."""
+    def touch_reaction(self, gesture: str = "tap") -> int:
+        """Handle tap/double/hold while keeping tap as notification clear."""
         with self.lock:
             cleared = self.unread_notifications
-            self.unread_notifications = 0
-            self.manual_state = "rage"
-            self.manual_until = time.monotonic() + duration
-            self.state = "rage"
-            self.reason = f"touchscreen table flip; cleared {cleared} notification{'s' if cleared != 1 else ''}"
+            now = time.monotonic()
+            if gesture == "hold":
+                state, duration, reason = "sleep", 3.0, "touchscreen hold; taking a shy little rest"
+            elif gesture == "double":
+                state, duration, reason = "helper", 2.2, "touchscreen double tap; eager helper check-in"
+            else:
+                gesture = "tap"
+                self.unread_notifications = 0
+                state, duration = "rage", 2.4
+                reason = f"touchscreen table flip; cleared {cleared} notification{'s' if cleared != 1 else ''}"
+            self.manual_state = state
+            self.manual_until = now + duration
+            if gesture == "tap" and APP_CONFIG.get("animation", {}).get("after_reactions", True):
+                self.after_state = "nervous"
+                self.after_until = now + duration + 1.2
+            else:
+                self.after_state = None
+                self.after_until = 0.0
+            self.state = state
+            self.reason = reason
+            self.source = "manual"
+            self.priority = REACTION_PRIORITY["manual"]
             self.sequence += 1
-            self.events.appendleft({"time": time.time(), "state": self.state, "reason": self.reason, "sequence": self.sequence})
+            self.events.appendleft({"time": time.time(), "state": self.state, "reason": self.reason, "source": "touch", "priority": self.priority, "sequence": self.sequence})
             return cleared
 
 
@@ -331,6 +365,45 @@ def install_activity_listeners() -> None:
         print("Install requirements.txt to enable typing and scrolling detection.")
 
 
+def choose_reaction(*, now: float, process: str, idle: float, manual: str | None,
+                    after: str | None, volume_recent: bool, volume_level: float,
+                    volume_muted: bool, last_key: float, last_scroll: float,
+                    scroll_burst: int, config: dict, games: set[str],
+                    browsers: set[str], media: set[str], app_states: dict[str, str]) -> tuple[str, str, str, int]:
+    """Resolve competing inputs by explicit priority, then return one reaction."""
+    candidates: list[tuple[int, str, str, str]] = []
+
+    def add(source: str, state: str, reason: str) -> None:
+        candidates.append((REACTION_PRIORITY[source], state, reason, source))
+
+    add("idle", "idle", f"foreground: {process}")
+    mapped = app_states.get(process)
+    if mapped in VALID_STATES:
+        add("application", mapped, f"application active: {process}")
+    if process in media:
+        add("application", "music", f"configured media app active: {process}")
+    if process in browsers and now - last_scroll <= float(config["browsing_hold_seconds"]):
+        if scroll_burst >= 5:
+            add("browsing", "browsing_fast", f"rapid browser scrolling: {scroll_burst} events")
+        else:
+            add("browsing", "browsing", "browser reading scroll")
+    if now - last_key <= float(config["typing_hold_seconds"]):
+        add("typing", "typing", "recent keyboard activity")
+    if process in games or mapped == "gaming":
+        add("gaming", "gaming", f"configured game active: {process}")
+    if idle >= float(config["sleep_after_seconds"]):
+        add("sleep", "sleep", "computer idle timeout")
+    if volume_recent:
+        muted = " muted" if volume_muted else ""
+        add("volume", "volume", f"system volume {round(volume_level * 100)}%{muted}")
+    if after:
+        add("after", after, "bashful after-reaction following touchscreen table flip")
+    if manual:
+        add("manual", manual, "temporary simulated event")
+    priority, state, reason, source = max(candidates, key=lambda item: item[0])
+    return state, reason, source, priority
+
+
 def detection_loop(config: dict, stop: threading.Event) -> None:
     app_states = {name.lower(): state.lower() for name, state in config.get("application_states", {}).items()}
     games = {x.lower() for x in config["game_processes"]}
@@ -356,32 +429,24 @@ def detection_loop(config: dict, stop: threading.Event) -> None:
         with RUNTIME.lock:
             RUNTIME.active_process, RUNTIME.idle_seconds = process, idle
             manual = RUNTIME.manual_state if now < RUNTIME.manual_until else None
+            after = RUNTIME.after_state if now >= RUNTIME.manual_until and now < RUNTIME.after_until else None
             scroll_burst = sum(event >= now - 0.75 for event in RUNTIME.scroll_events)
+            last_key, last_scroll = RUNTIME.last_key, RUNTIME.last_scroll
+            volume_recent = now - RUNTIME.last_volume <= 0.9
+            volume_level, volume_muted = RUNTIME.volume_level, RUNTIME.volume_muted
             if not manual:
                 RUNTIME.manual_state = None
+            if not after:
+                RUNTIME.after_state = None
 
-        if manual:
-            RUNTIME.set_state(manual, "temporary simulated event")
-        elif now - RUNTIME.last_volume <= 0.9:
-            muted = " muted" if RUNTIME.volume_muted else ""
-            RUNTIME.set_state("volume", f"system volume {round(RUNTIME.volume_level * 100)}%{muted}")
-        elif idle >= float(config["sleep_after_seconds"]):
-            RUNTIME.set_state("sleep", "computer idle timeout")
-        elif process in games or app_states.get(process) == "gaming":
-            RUNTIME.set_state("gaming", f"configured game active: {process}")
-        elif process in media or app_states.get(process) == "music":
-            RUNTIME.set_state("music", f"configured media app active: {process}")
-        elif now - RUNTIME.last_key <= float(config["typing_hold_seconds"]):
-            RUNTIME.set_state("typing", "recent keyboard activity")
-        elif process in browsers and now - RUNTIME.last_scroll <= float(config["browsing_hold_seconds"]):
-            if scroll_burst >= 5:
-                RUNTIME.set_state("browsing_fast", f"rapid browser scrolling: {scroll_burst} events")
-            else:
-                RUNTIME.set_state("browsing", "browser reading scroll")
-        elif process in app_states and app_states[process] in VALID_STATES:
-            RUNTIME.set_state(app_states[process], f"application active: {process}")
-        else:
-            RUNTIME.set_state("idle", f"foreground: {process}")
+        state, reason, source, priority = choose_reaction(
+            now=now, process=process, idle=idle, manual=manual, after=after,
+            volume_recent=volume_recent, volume_level=volume_level,
+            volume_muted=volume_muted, last_key=last_key, last_scroll=last_scroll,
+            scroll_burst=scroll_burst, config=config, games=games,
+            browsers=browsers, media=media, app_states=app_states,
+        )
+        RUNTIME.set_state(state, reason, source, priority)
 
 
 def weather_loop(config: dict, stop: threading.Event) -> None:
@@ -445,6 +510,10 @@ class Handler(SimpleHTTPRequestHandler):
         if urlparse(self.path).path == "/api/state":
             self.send_json(RUNTIME.snapshot())
             return
+        if urlparse(self.path).path == "/api/frame":
+            snapshot = RUNTIME.snapshot()
+            self.send_json({key: snapshot[key] for key in ("protocol_version", "sequence", "state", "display", "modifiers", "volume_level", "volume_muted", "unread_notifications")})
+            return
         if urlparse(self.path).path == "/api/health":
             self.send_json({"ok": True, "version": 1})
             return
@@ -460,7 +529,7 @@ class Handler(SimpleHTTPRequestHandler):
             with RUNTIME.lock:
                 RUNTIME.manual_state = "notification"
                 RUNTIME.manual_until = time.monotonic() + 1.4
-            RUNTIME.set_state("notification", f"new notification; {count} unread")
+            RUNTIME.set_state("notification", f"new notification; {count} unread", "manual")
             self.send_json(RUNTIME.snapshot())
             return
         if route == "/api/clear-notifications":
@@ -468,8 +537,16 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_json(RUNTIME.snapshot())
             return
         if route == "/api/touch":
-            RUNTIME.touch_reaction()
-            self.send_json(RUNTIME.snapshot())
+            try:
+                length = min(int(self.headers.get("Content-Length", "0")), 512)
+                payload = json.loads(self.rfile.read(length) or b"{}")
+                gesture = str(payload.get("gesture", "tap")).lower()
+                if gesture not in {"tap", "double", "hold"}:
+                    raise ValueError("gesture must be tap, double, or hold")
+                RUNTIME.touch_reaction(gesture)
+                self.send_json(RUNTIME.snapshot())
+            except (ValueError, json.JSONDecodeError) as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
             return
         if route != "/api/simulate":
             self.send_json({"error": "not found"}, HTTPStatus.NOT_FOUND)
@@ -484,7 +561,7 @@ class Handler(SimpleHTTPRequestHandler):
             with RUNTIME.lock:
                 RUNTIME.manual_state = state
                 RUNTIME.manual_until = time.monotonic() + duration
-            RUNTIME.set_state(state, "temporary simulated event")
+            RUNTIME.set_state(state, "temporary simulated event", "manual")
             self.send_json(RUNTIME.snapshot())
         except (ValueError, json.JSONDecodeError) as exc:
             self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
@@ -502,7 +579,7 @@ def main() -> int:
     parser.add_argument("--port", type=int, help="Override configured port.")
     args = parser.parse_args()
     config = APP_CONFIG = load_config()
-    RUNTIME.set_state("startup", "Lil Bot woke up and is ready to help")
+    RUNTIME.set_state("startup", "Lil Bot woke up and is ready to help", "manual")
     with RUNTIME.lock:
         RUNTIME.manual_state = "startup"
         RUNTIME.manual_until = time.monotonic() + 3.2
