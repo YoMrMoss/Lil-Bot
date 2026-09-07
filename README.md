@@ -69,7 +69,7 @@ as though it were the ESP32 display.
 5. Use the state buttons to simulate events that are not detected yet.
 6. Close the command window or press `Ctrl+C` to stop it.
 
-The current simulator is labeled **BUILD 1.3.0** at the top. When updating, close
+The current simulator is labeled **BUILD 1.3.1** at the top. When updating, close
 the previous Lil Bot command window and extract the new ZIP into a new folder
 instead of merging it into an older copy. If the screen still has side grips or
 a USB tab, an older preview is running.
@@ -149,6 +149,10 @@ currently a project-owned notification counter; reading the Windows or Discord
 unread total automatically will require a later integration with their supported
 notification APIs.
 
+Touching the simulated screen—or the physical touchscreen once its firmware is
+connected—shows the automatically fitted `(┛◉Д◉)┛彡┻━┻` table-flip reaction and
+clears the unread-notification count in the same action.
+
 See `ENCLOSURE_NOTES.md` for the chonky hood-and-headphones case concept,
 including the USB cable disguised as a safely strain-relieved headphone cord.
 
@@ -181,6 +185,7 @@ Useful endpoints while developing:
 - `POST /api/simulate` temporarily injects a test state.
 - `POST /api/notification` adds an unread notification.
 - `POST /api/clear-notifications` clears the unread count.
+- `POST /api/touch` clears unread notifications and triggers the table flip.
 
 Example test request:
 

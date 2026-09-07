@@ -27,7 +27,7 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "companion_config.json"
-BUILD_VERSION = "1.3.0"
+BUILD_VERSION = "1.3.1"
 VALID_STATES = {"idle", "typing", "browsing", "browsing_fast", "music", "gaming", "cat", "helper", "showoff", "crying", "nervous", "rage", "notification", "loading", "error", "sleep", "volume", "startup", "reconnect"}
 
 
@@ -162,6 +162,19 @@ class Runtime:
         with self.lock:
             self.unread_notifications = 0
             self.events.appendleft({"time": time.time(), "state": self.state, "reason": "notifications cleared", "sequence": self.sequence})
+
+    def touch_reaction(self, duration: float = 2.4) -> int:
+        """Clear unread notices and show the fitted table-flip reaction."""
+        with self.lock:
+            cleared = self.unread_notifications
+            self.unread_notifications = 0
+            self.manual_state = "rage"
+            self.manual_until = time.monotonic() + duration
+            self.state = "rage"
+            self.reason = f"touchscreen table flip; cleared {cleared} notification{'s' if cleared != 1 else ''}"
+            self.sequence += 1
+            self.events.appendleft({"time": time.time(), "state": self.state, "reason": self.reason, "sequence": self.sequence})
+            return cleared
 
 
 RUNTIME = Runtime()
@@ -452,6 +465,10 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if route == "/api/clear-notifications":
             RUNTIME.clear_notifications()
+            self.send_json(RUNTIME.snapshot())
+            return
+        if route == "/api/touch":
+            RUNTIME.touch_reaction()
             self.send_json(RUNTIME.snapshot())
             return
         if route != "/api/simulate":
