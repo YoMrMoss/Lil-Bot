@@ -69,7 +69,7 @@ as though it were the ESP32 display.
 5. Use the state buttons to simulate events that are not detected yet.
 6. Close the command window or press `Ctrl+C` to stop it.
 
-The current simulator is labeled **BUILD 1.2.0** at the top. When updating, close
+The current simulator is labeled **BUILD 1.3.0** at the top. When updating, close
 the previous Lil Bot command window and extract the new ZIP into a new folder
 instead of merging it into an older copy. If the screen still has side grips or
 a USB tab, an older preview is running.
@@ -107,10 +107,21 @@ can also be selected manually in the simulator. The volume overlay reads the
 Windows master level: fewer illuminated bars mean quieter, all ten mean loud,
 and mute uses a pink strike-through.
 
+Every imported emoticon is automatically scaled into the same shared face
+area, so short expressions no longer appear tiny beside the native eyes. Each
+one is rendered as a complete face without unrelated eyes, tears, or accent
+marks underneath it. Rapid scrolling likewise uses one integrated racing
+helmet/visor face instead of drawing a helmet over the standard browsing face.
+
 The larger reaction library also includes `(つ▀¯▀ )つ` for proud discoveries,
 `(T⌓T)` for crying, `⊙˛̼⊙` for nervous moments, and
 `(┛◉Д◉)┛彡┻━┻` for a full table-flip emergency. Proud discovery is a rare idle
 cameo; the stronger reactions remain manual or event-driven.
+
+Spotify playback is also an independent motion layer. While Spotify owns an
+active Windows audio session, whichever expression is currently visible will
+bob and gently pulse; the floating music notes stay reserved for the dedicated
+music face so other emotions remain readable.
 
 The display preview also includes transition scenarios for music plus volume,
 gaming plus Discord, and browsing plus typing/loading. These verify that a

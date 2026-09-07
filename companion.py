@@ -27,7 +27,7 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "companion_config.json"
-BUILD_VERSION = "1.2.0"
+BUILD_VERSION = "1.3.0"
 VALID_STATES = {"idle", "typing", "browsing", "browsing_fast", "music", "gaming", "cat", "helper", "showoff", "crying", "nervous", "rage", "notification", "loading", "error", "sleep", "volume", "startup", "reconnect"}
 
 
@@ -93,6 +93,7 @@ class Runtime:
     volume_direction: str = "none"
     volume_level: float = 0.5
     volume_muted: bool = False
+    music_playing: bool = False
     manual_state: str | None = None
     manual_until: float = 0.0
     connected_at: float = field(default_factory=time.time)
@@ -123,6 +124,7 @@ class Runtime:
                 "volume_direction": self.volume_direction,
                 "volume_level": round(self.volume_level, 3),
                 "volume_muted": self.volume_muted,
+                "music_playing": self.music_playing,
                 "ambient": {
                     "temperature": self.temperature,
                     "temperature_unit": self.temperature_unit,
@@ -244,6 +246,23 @@ def read_system_volume(fallback_level: float, fallback_muted: bool) -> tuple[flo
         return fallback_level, fallback_muted
 
 
+def spotify_is_playing() -> bool:
+    """Return true only when Spotify owns an active Windows audio session."""
+    if platform.system() != "Windows":
+        return False
+    try:
+        from pycaw.pycaw import AudioUtilities  # type: ignore
+
+        for session in AudioUtilities.GetAllSessions():
+            process = session.Process
+            state = getattr(session.State, "value", session.State)
+            if process and process.name().lower() == "spotify.exe" and int(state) == 1:
+                return True
+    except Exception:
+        return False
+    return False
+
+
 def install_activity_listeners() -> None:
     """Listen only for event timestamps; never inspect or store key values."""
     try:
@@ -304,8 +323,21 @@ def detection_loop(config: dict, stop: threading.Event) -> None:
     games = {x.lower() for x in config["game_processes"]}
     browsers = {x.lower() for x in config["browser_processes"]}
     media = {x.lower() for x in config["media_processes"]}
+    last_media_check = 0.0
+    if platform.system() == "Windows":
+        try:
+            import comtypes  # type: ignore
+
+            comtypes.CoInitialize()
+        except Exception:
+            pass
     while not stop.wait(0.12):
         now = time.monotonic()
+        if now - last_media_check >= 0.8:
+            playing = spotify_is_playing()
+            with RUNTIME.lock:
+                RUNTIME.music_playing = playing
+            last_media_check = now
         process = active_process_name()
         idle = windows_idle_seconds()
         with RUNTIME.lock:
