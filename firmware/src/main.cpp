@@ -124,17 +124,27 @@ void thickLine(int x1, int y1, int x2, int y2, uint16_t color, int width = 4) {
   }
 }
 
+void pixelDisc(int x, int y, int radius, uint16_t color) {
+  // Three rectangles form a crisp stepped circle on the 320x170 panel.
+  const int inset = max(4, radius / 4);
+  gfx->fillRect(x - radius + inset, y - radius, (radius - inset) * 2 + 1, radius * 2 + 1, color);
+  gfx->fillRect(x - radius, y - radius + inset, radius * 2 + 1, (radius - inset) * 2 + 1, color);
+}
+
 void drawSmile(int x, int y, int size, uint16_t color) {
-  // A filled lower half-circle reads as a warm, open emoticon smile.
-  const int radius = size / 2;
-  gfx->fillCircle(x, y - 8, radius, color);
-  gfx->fillRect(x - radius - 1, y - radius - 9, size + 2, radius + 1, BLACK);
+  // Filled five-block smile: chunky, readable, and shared by every face.
+  const int unit = max(4, size / 7);
+  gfx->fillRect(x - unit * 3, y - unit, unit, unit, color);
+  gfx->fillRect(x - unit * 2, y, unit, unit, color);
+  gfx->fillRect(x - unit, y + unit, unit * 2, unit, color);
+  gfx->fillRect(x + unit, y, unit, unit, color);
+  gfx->fillRect(x + unit * 2, y - unit, unit, unit, color);
 }
 
 void drawBaseEyes(int yOffset = 0, int gazeX = 0) {
   // Approved simulator geometry: solid cyan emoticon dots, without pupils.
-  gfx->fillCircle(LEFT_EYE_X + gazeX, EYE_Y + yOffset, EYE_SIZE / 2, cyan);
-  gfx->fillCircle(RIGHT_EYE_X + gazeX, EYE_Y + yOffset, EYE_SIZE / 2, cyan);
+  pixelDisc(LEFT_EYE_X + gazeX, EYE_Y + yOffset, EYE_SIZE / 2, cyan);
+  pixelDisc(RIGHT_EYE_X + gazeX, EYE_Y + yOffset, EYE_SIZE / 2, cyan);
 }
 
 void drawClosedEyes(int yOffset = 0, bool happy = false) {
@@ -148,31 +158,81 @@ void drawClosedEyes(int yOffset = 0, bool happy = false) {
 }
 
 void drawReadingGlasses(int yOffset) {
-  gfx->drawRoundRect(35, 57 + yOffset, 67, 55, 8, cyan);
-  gfx->drawRoundRect(218, 57 + yOffset, 67, 55, 8, cyan);
-  thickLine(102, 78 + yOffset, 218, 78 + yOffset, pink, 3);
-  thickLine(35, 68 + yOffset, 15, 61 + yOffset, pink, 3);
-  thickLine(285, 68 + yOffset, 305, 61 + yOffset, pink, 3);
+  // Substantial 8 px frames with colored brow and temple blocks.
+  gfx->fillRect(31, 54 + yOffset, 75, 8, purple);
+  gfx->fillRect(31, 62 + yOffset, 8, 54, cyan);
+  gfx->fillRect(98, 62 + yOffset, 8, 54, cyan);
+  gfx->fillRect(39, 108 + yOffset, 59, 8, cyan);
+  gfx->fillRect(214, 54 + yOffset, 75, 8, purple);
+  gfx->fillRect(214, 62 + yOffset, 8, 54, cyan);
+  gfx->fillRect(281, 62 + yOffset, 8, 54, cyan);
+  gfx->fillRect(222, 108 + yOffset, 59, 8, cyan);
+  gfx->fillRect(106, 73 + yOffset, 108, 8, pink);
+  gfx->fillRect(15, 63 + yOffset, 16, 8, pink);
+  gfx->fillRect(289, 63 + yOffset, 16, 8, pink);
 }
 
 void drawRaceVisor(int yOffset, float progress) {
-  // Compact helmet: retain the bot's face and slide a visor into place.
-  const int slide = static_cast<int>((1.0f - progress) * -64.0f);
-  gfx->drawRoundRect(28, 27 + yOffset, 264, 112, 32, pink);
-  gfx->drawRoundRect(30, 29 + yOffset, 260, 108, 30, pink);
-  gfx->fillRect(156, 29 + yOffset, 8, 27, pink);
-  gfx->fillRoundRect(34, 48 + yOffset + slide, 252, 62, 16, purple);
-  gfx->drawRoundRect(34, 48 + yOffset + slide, 252, 62, 16, cyan);
-  gfx->drawRoundRect(35, 49 + yOffset + slide, 250, 60, 15, cyan);
-  // Excited eyes remain visible behind the visor.
-  thickLine(65, 78 + yOffset + slide, 91, 68 + yOffset + slide, cyan, 6);
-  thickLine(91, 68 + yOffset + slide, 78, 91 + yOffset + slide, cyan, 6);
-  thickLine(255, 78 + yOffset + slide, 229, 68 + yOffset + slide, cyan, 6);
-  thickLine(229, 68 + yOffset + slide, 242, 91 + yOffset + slide, cyan, 6);
-  // Edge streaks give speed without covering the expression.
+  const int slide = static_cast<int>((1.0f - progress) * -58.0f);
+  // Pixel helmet crown and ear blocks.
+  gfx->fillRect(58, 20 + yOffset, 204, 8, pink);
+  gfx->fillRect(38, 28 + yOffset, 20, 12, purple);
+  gfx->fillRect(262, 28 + yOffset, 20, 12, purple);
+  gfx->fillRect(22, 40 + yOffset, 16, 82, pink);
+  gfx->fillRect(282, 40 + yOffset, 16, 82, pink);
+  gfx->fillRect(150, 20 + yOffset, 20, 20, purple);
+  // Layered visor: purple glass, cyan rim, magenta lower trim.
+  gfx->fillRect(38, 48 + yOffset + slide, 244, 64, purpleDark);
+  gfx->fillRect(30, 56 + yOffset + slide, 8, 48, cyan);
+  gfx->fillRect(282, 56 + yOffset + slide, 8, 48, cyan);
+  gfx->fillRect(38, 48 + yOffset + slide, 244, 8, cyan);
+  gfx->fillRect(38, 104 + yOffset + slide, 244, 8, pink);
+  // Block chevrons remain readable behind the glass.
+  thickLine(67, 76 + yOffset + slide, 93, 67 + yOffset + slide, cyan, 8);
+  thickLine(93, 67 + yOffset + slide, 78, 91 + yOffset + slide, cyan, 8);
+  thickLine(253, 76 + yOffset + slide, 227, 67 + yOffset + slide, pink, 8);
+  thickLine(227, 67 + yOffset + slide, 242, 91 + yOffset + slide, pink, 8);
   const int streak = (millis() / 55) % 18;
-  thickLine(2, 61 + streak, 23, 61 + streak, cyan, 3);
-  thickLine(297, 92 - streak, 318, 92 - streak, pink, 3);
+  gfx->fillRect(2, 58 + streak, 21, 5, cyan);
+  gfx->fillRect(297, 90 - streak, 21, 5, pink);
+}
+
+void drawHelperFace(int yOffset) {
+  pixelDisc(83, 82 + yOffset, 19, cyan);
+  pixelDisc(237, 82 + yOffset, 19, cyan);
+  drawSmile(160, 122 + yOffset, 42, pink);
+  // A chunky sparkle says “ready to help” without fragile line art.
+  gfx->fillRect(151, 30 + yOffset, 18, 7, purple);
+  gfx->fillRect(156, 25 + yOffset, 8, 18, purple);
+  gfx->fillRect(43, 112 + yOffset, 22, 9, pink);
+  gfx->fillRect(57, 103 + yOffset, 9, 27, pink);
+  gfx->fillRect(65, 103 + yOffset, 17, 9, cyan);
+}
+
+void drawShowoffFace(int yOffset) {
+  // Solid shades, bright bridge, and a confident pixel grin.
+  gfx->fillRect(43, 59 + yOffset, 76, 16, cyan);
+  gfx->fillRect(51, 75 + yOffset, 60, 28, purpleDark);
+  gfx->fillRect(201, 59 + yOffset, 76, 16, cyan);
+  gfx->fillRect(209, 75 + yOffset, 60, 28, purpleDark);
+  gfx->fillRect(119, 67 + yOffset, 82, 9, pink);
+  gfx->fillRect(59, 83 + yOffset, 20, 8, pink);
+  gfx->fillRect(241, 83 + yOffset, 20, 8, pink);
+  drawSmile(160, 124 + yOffset, 48, pink);
+  gfx->fillRect(22, 40 + yOffset, 26, 7, purple);
+  gfx->fillRect(31, 31 + yOffset, 7, 25, purple);
+}
+
+void drawNotificationIcon(int yOffset) {
+  // Robot-style envelope alert from the approved concept sheet.
+  gfx->fillRect(76, 45 + yOffset, 168, 10, cyan);
+  gfx->fillRect(66, 55 + yOffset, 10, 82, cyan);
+  gfx->fillRect(244, 55 + yOffset, 10, 82, cyan);
+  gfx->fillRect(76, 137 + yOffset, 168, 10, cyan);
+  thickLine(76, 55 + yOffset, 160, 113 + yOffset, pink, 8);
+  thickLine(244, 55 + yOffset, 160, 113 + yOffset, pink, 8);
+  gfx->fillRect(270, 37 + yOffset, 24, 24, purple);
+  gfx->fillRect(278, 29 + yOffset, 8, 40, purple);
 }
 
 void drawGaming(int yOffset) {
@@ -320,10 +380,7 @@ void drawFace() {
     drawVerticalEyes(yOffset);
     drawSmile(MOUTH_X, MOUTH_Y + yOffset, MOUTH_SIZE, pink);
   } else if (activeState == "notification") {
-    drawBaseEyes(yOffset);
-    gfx->fillRect(RIGHT_EYE_X - 24, EYE_Y - 3 + yOffset, 48, 7, BLACK);
-    drawBarEye(RIGHT_EYE_X, yOffset);
-    drawOMouth(yOffset);
+    drawNotificationIcon(yOffset);
   } else if (activeState == "error") {
     drawXEye(LEFT_EYE_X, yOffset);
     drawXEye(RIGHT_EYE_X, yOffset);
@@ -334,14 +391,17 @@ void drawFace() {
     thickLine(173, MOUTH_Y + 5, 181, MOUTH_Y, pink, 3);
   } else if (activeState == "startup") {
     drawBarEye(LEFT_EYE_X, yOffset);
-    gfx->fillCircle(RIGHT_EYE_X, EYE_Y + yOffset, EYE_SIZE / 2, cyan);
+    pixelDisc(RIGHT_EYE_X, EYE_Y + yOffset, EYE_SIZE / 2, cyan);
     drawSmile(MOUTH_X, MOUTH_Y + yOffset, MOUTH_SIZE, pink);
   } else if (activeState == "reconnect") {
     drawCircleEye(LEFT_EYE_X, yOffset);
-    gfx->fillCircle(RIGHT_EYE_X, EYE_Y + yOffset, EYE_SIZE / 2, cyan);
+    pixelDisc(RIGHT_EYE_X, EYE_Y + yOffset, EYE_SIZE / 2, cyan);
     drawSmile(MOUTH_X, MOUTH_Y + yOffset, MOUTH_SIZE, pink);
-  } else if (activeState == "cat" || activeState == "helper" ||
-             activeState == "showoff" || activeState == "crying" ||
+  } else if (activeState == "helper") {
+    drawHelperFace(yOffset);
+  } else if (activeState == "showoff") {
+    drawShowoffFace(yOffset);
+  } else if (activeState == "cat" || activeState == "crying" ||
              activeState == "nervous" || activeState == "rage") {
     drawAssetFace(activeState, yOffset,
                   (activeState == "crying" || activeState == "rage") ? pink : cyan);
@@ -351,7 +411,7 @@ void drawFace() {
         drawBarEye(LEFT_EYE_X, yOffset);
         drawBarEye(RIGHT_EYE_X, yOffset);
       } else {
-        gfx->fillCircle(LEFT_EYE_X, EYE_Y + yOffset, EYE_SIZE / 2, cyan);
+        pixelDisc(LEFT_EYE_X, EYE_Y + yOffset, EYE_SIZE / 2, cyan);
         drawBarEye(RIGHT_EYE_X, yOffset);
       }
     } else {
