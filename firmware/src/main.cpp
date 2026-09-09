@@ -59,6 +59,9 @@ uint8_t brightness = 80;
 uint16_t cyan;
 uint16_t pink;
 uint16_t purple;
+uint16_t cyanDark;
+uint16_t pinkDark;
+uint16_t purpleDark;
 
 const FaceAsset *findFaceAsset(const String &name) {
   for (size_t i = 0; i < FACE_ASSET_COUNT; ++i) {
@@ -70,8 +73,49 @@ const FaceAsset *findFaceAsset(const String &name) {
 bool drawAssetFace(const String &name, int yOffset, uint16_t color) {
   const FaceAsset *asset = findFaceAsset(name);
   if (!asset) return false;
+  // Offset color layers give every bitmap face the same Miami Vice depth.
+  gfx->drawBitmap(2, yOffset + 2, asset->data, asset->width, asset->height, purple);
+  gfx->drawBitmap(1, yOffset + 1, asset->data, asset->width, asset->height,
+                  color == pink ? cyanDark : pinkDark);
   gfx->drawBitmap(0, yOffset, asset->data, asset->width, asset->height, color);
   return true;
+}
+
+bool isGlowColor(uint16_t color) {
+  return color == cyanDark || color == pinkDark || color == purpleDark;
+}
+
+void spreadPixelGlow(uint16_t core, uint16_t inner, uint16_t outer) {
+  if (!frameCanvas || brightness <= 20) return;
+  uint16_t *pixels = frameCanvas->getFramebuffer();
+  if (!pixels) return;
+  constexpr int width = 320;
+  constexpr int height = 170;
+  for (int y = 0; y < height; ++y) {
+    for (int x = 0; x < width; ++x) {
+      if (pixels[y * width + x] != core) continue;
+      for (int dy = -2; dy <= 2; ++dy) {
+        for (int dx = -2; dx <= 2; ++dx) {
+          if (dx == 0 && dy == 0) continue;
+          const int px = x + dx;
+          const int py = y + dy;
+          if (px < 0 || px >= width || py < 0 || py >= height) continue;
+          uint16_t &target = pixels[py * width + px];
+          if (target != BLACK && !isGlowColor(target)) continue;
+          const bool near = abs(dx) <= 1 && abs(dy) <= 1;
+          if (near || target == BLACK) target = near ? inner : outer;
+        }
+      }
+    }
+  }
+}
+
+void applyColorTreatment() {
+  if (!frameCanvas) return;
+  // Dark stepped halos read as glow on the small LCD without costly alpha effects.
+  spreadPixelGlow(cyan, purpleDark, cyanDark);
+  spreadPixelGlow(pink, purpleDark, pinkDark);
+  spreadPixelGlow(purple, pinkDark, purpleDark);
 }
 
 void thickLine(int x1, int y1, int x2, int y2, uint16_t color, int width = 4) {
@@ -333,7 +377,10 @@ void drawFace() {
   if (musicBob || activeState == "music") drawMusicNotes();
   if (unreadNotifications > 0) drawNotificationBadge();
   if (!linked) gfx->fillCircle(308, 12, 3, purple);
-  if (frameCanvas && gfx == frameCanvas) frameCanvas->flush();
+  if (frameCanvas && gfx == frameCanvas) {
+    applyColorTreatment();
+    frameCanvas->flush();
+  }
 }
 
 void setBrightness(uint8_t percent) {
@@ -469,7 +516,10 @@ void setup() {
   }
   cyan = gfx->color565(25, 247, 255);
   pink = gfx->color565(255, 45, 170);
-  purple = gfx->color565(48, 25, 82);
+  purple = gfx->color565(139, 61, 255);
+  cyanDark = gfx->color565(3, 48, 58);
+  pinkDark = gfx->color565(55, 8, 35);
+  purpleDark = gfx->color565(48, 25, 82);
   gfx->fillScreen(BLACK);
   ledcSetup(0, 5000, 8);
   ledcAttachPin(BACKLIGHT_PIN, 0);
