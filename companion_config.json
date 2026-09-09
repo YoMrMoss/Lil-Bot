@@ -39,6 +39,8 @@
   },
   "ambient_card_interval_seconds": 60,
   "ambient_card_duration_seconds": 6,
+  "idle_cameo_first_seconds": 15,
+  "idle_cameo_duration_seconds": 3.2,
   "quiet_hours": {
     "enabled": true,
     "start": "22:30",

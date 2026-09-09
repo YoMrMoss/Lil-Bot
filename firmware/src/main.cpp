@@ -2,6 +2,7 @@
 #include <ArduinoJson.h>
 #include <Arduino_GFX_Library.h>
 #include <Wire.h>
+#include "face_assets.h"
 
 namespace {
 constexpr uint8_t POWER_PIN = 15;
@@ -38,12 +39,27 @@ float volumeLevel = 0.5f;
 bool volumeMuted = false;
 bool musicBob = false;
 bool pixelShift = true;
+uint16_t unreadNotifications = 0;
 bool linked = false;
 bool touchDown = false;
 uint8_t brightness = 80;
 uint16_t cyan;
 uint16_t pink;
 uint16_t purple;
+
+const FaceAsset *findFaceAsset(const String &name) {
+  for (size_t i = 0; i < FACE_ASSET_COUNT; ++i) {
+    if (name == FACE_ASSETS[i].name) return &FACE_ASSETS[i];
+  }
+  return nullptr;
+}
+
+bool drawAssetFace(const String &name, int yOffset, uint16_t color) {
+  const FaceAsset *asset = findFaceAsset(name);
+  if (!asset) return false;
+  gfx->drawBitmap(0, yOffset, asset->data, asset->width, asset->height, color);
+  return true;
+}
 
 void thickLine(int x1, int y1, int x2, int y2, uint16_t color, int width = 4) {
   for (int offset = -width / 2; offset <= width / 2; ++offset) {
@@ -98,6 +114,38 @@ void drawGaming(int yOffset) {
   gfx->print("oo]");
 }
 
+void drawVerticalEyes(int yOffset) {
+  gfx->fillRoundRect(LEFT_EYE_X - 8, EYE_Y - 24 + yOffset, 16, 48, 5, cyan);
+  gfx->fillRoundRect(RIGHT_EYE_X - 8, EYE_Y - 24 + yOffset, 16, 48, 5, cyan);
+}
+
+void drawBarEye(int x, int yOffset) {
+  thickLine(x - 24, EYE_Y + yOffset, x + 24, EYE_Y + yOffset, cyan, 4);
+}
+
+void drawCircleEye(int x, int yOffset) {
+  gfx->drawCircle(x, EYE_Y + yOffset, EYE_SIZE / 2, cyan);
+  gfx->drawCircle(x, EYE_Y + yOffset, EYE_SIZE / 2 - 1, cyan);
+}
+
+void drawXEye(int x, int yOffset) {
+  thickLine(x - 18, EYE_Y - 18 + yOffset, x + 18, EYE_Y + 18 + yOffset, cyan, 5);
+  thickLine(x - 18, EYE_Y + 18 + yOffset, x + 18, EYE_Y - 18 + yOffset, cyan, 5);
+}
+
+void drawOMouth(int yOffset) {
+  gfx->drawEllipse(MOUTH_X, MOUTH_Y + yOffset, 12, 15, pink);
+  gfx->drawEllipse(MOUTH_X, MOUTH_Y + yOffset, 11, 14, pink);
+}
+
+void drawNotificationBadge() {
+  gfx->fillCircle(290, 20, 13, pink);
+  gfx->setTextColor(BLACK);
+  gfx->setTextSize(1);
+  gfx->setCursor(unreadNotifications > 9 ? 284 : 287, 17);
+  gfx->print(unreadNotifications > 99 ? 99 : unreadNotifications);
+}
+
 void drawVolumeStatus() {
   const int bars = volumeMuted ? 0 : constrain(static_cast<int>(volumeLevel * 8.0f + 0.5f), 1, 8);
   for (int i = 0; i < 8; ++i) {
@@ -143,7 +191,7 @@ void drawFace() {
   gfx->fillScreen(BLACK);
 
   if (activeState == "gaming") {
-    drawGaming(yOffset);
+    if (!drawAssetFace("gaming", yOffset, cyan)) drawGaming(yOffset);
   } else if (activeState == "browsing_fast") {
     drawRaceVisor(yOffset);
     drawSmile(MOUTH_X, MOUTH_Y + yOffset, MOUTH_SIZE, pink);
@@ -153,6 +201,35 @@ void drawFace() {
   } else if (activeState == "music") {
     drawClosedEyes(yOffset, true);
     drawSmile(MOUTH_X, MOUTH_Y + yOffset, MOUTH_SIZE, pink);
+  } else if (activeState == "typing") {
+    drawVerticalEyes(yOffset);
+    drawSmile(MOUTH_X, MOUTH_Y + yOffset, MOUTH_SIZE, pink);
+  } else if (activeState == "notification") {
+    drawBaseEyes(yOffset);
+    gfx->fillRect(RIGHT_EYE_X - 24, EYE_Y - 3 + yOffset, 48, 7, BLACK);
+    drawBarEye(RIGHT_EYE_X, yOffset);
+    drawOMouth(yOffset);
+  } else if (activeState == "error") {
+    drawXEye(LEFT_EYE_X, yOffset);
+    drawXEye(RIGHT_EYE_X, yOffset);
+    thickLine(139, MOUTH_Y, 147, MOUTH_Y - 6, pink, 3);
+    thickLine(147, MOUTH_Y - 6, 155, MOUTH_Y + 6, pink, 3);
+    thickLine(155, MOUTH_Y + 6, 164, MOUTH_Y - 6, pink, 3);
+    thickLine(164, MOUTH_Y - 6, 173, MOUTH_Y + 5, pink, 3);
+    thickLine(173, MOUTH_Y + 5, 181, MOUTH_Y, pink, 3);
+  } else if (activeState == "startup") {
+    drawBarEye(LEFT_EYE_X, yOffset);
+    gfx->fillCircle(RIGHT_EYE_X, EYE_Y + yOffset, EYE_SIZE / 2, cyan);
+    drawSmile(MOUTH_X, MOUTH_Y + yOffset, MOUTH_SIZE, pink);
+  } else if (activeState == "reconnect") {
+    drawCircleEye(LEFT_EYE_X, yOffset);
+    gfx->fillCircle(RIGHT_EYE_X, EYE_Y + yOffset, EYE_SIZE / 2, cyan);
+    drawSmile(MOUTH_X, MOUTH_Y + yOffset, MOUTH_SIZE, pink);
+  } else if (activeState == "cat" || activeState == "helper" ||
+             activeState == "showoff" || activeState == "crying" ||
+             activeState == "nervous" || activeState == "rage") {
+    drawAssetFace(activeState, yOffset,
+                  (activeState == "crying" || activeState == "rage") ? pink : cyan);
   } else {
     drawBaseEyes(yOffset);
     if (activeState == "browsing") drawReadingGlasses(yOffset);
@@ -173,6 +250,7 @@ void drawFace() {
   if (activeState == "volume") drawVolumeStatus();
   if (activeState == "loading" || activeState == "reconnect") drawLoadingStatus();
   if (musicBob || activeState == "music") drawMusicNotes();
+  if (unreadNotifications > 0) drawNotificationBadge();
   if (!linked) gfx->fillCircle(308, 12, 3, purple);
 }
 
@@ -200,10 +278,10 @@ void acceptFrame(const String &line) {
 }
 
 void acceptWireFrame(const String &line) {
-  // LILBOT|protocol|sequence|state|volume%|muted|musicBob|brightness|pixelShift
-  String fields[9];
+  // LILBOT|protocol|sequence|state|volume%|muted|musicBob|brightness|pixelShift|unread
+  String fields[10];
   int start = 0;
-  for (int i = 0; i < 9; ++i) {
+  for (int i = 0; i < 10; ++i) {
     int separator = line.indexOf('|', start);
     if (separator < 0) separator = line.length();
     fields[i] = line.substring(start, separator);
@@ -218,8 +296,10 @@ void acceptWireFrame(const String &line) {
   const bool incomingMuted = fields[5].toInt() != 0;
   const bool incomingMusicBob = fields[6].toInt() != 0;
   const bool incomingPixelShift = fields[8].toInt() != 0;
+  const uint16_t incomingUnread = constrain(fields[9].toInt(), 0, 999);
   const bool visualChanged = incomingState != activeState ||
       incomingMusicBob != musicBob || incomingPixelShift != pixelShift ||
+      incomingUnread != unreadNotifications ||
       (incomingState == "volume" &&
        (incomingMuted != volumeMuted || abs(incomingVolume - volumeLevel) >= 0.01f));
   sequence = static_cast<uint32_t>(fields[2].toInt());
@@ -229,6 +309,7 @@ void acceptWireFrame(const String &line) {
   musicBob = incomingMusicBob;
   setBrightness(constrain(fields[7].toInt(), 10, 100));
   pixelShift = incomingPixelShift;
+  unreadNotifications = incomingUnread;
   linked = true;
   lastFrameAt = millis();
   // Heartbeats keep the link alive without clearing a static LCD frame.

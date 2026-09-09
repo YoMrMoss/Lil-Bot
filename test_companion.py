@@ -77,7 +77,7 @@ class HardwareProtocolTests(unittest.TestCase):
         companion.RUNTIME.volume_muted = False
         companion.RUNTIME.music_playing = True
         frame = companion.RUNTIME.wire_frame()
-        self.assertEqual(frame, "LILBOT|1|42|browsing_fast|75|0|1|100|1\n")
+        self.assertEqual(frame, "LILBOT|1|42|browsing_fast|75|0|1|100|1|0\n")
 
 
 if __name__ == "__main__":

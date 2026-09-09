@@ -27,7 +27,7 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "companion_config.json"
-BUILD_VERSION = "1.6.2"
+BUILD_VERSION = "1.7.0"
 PROTOCOL_VERSION = 1
 VALID_STATES = {"idle", "typing", "browsing", "browsing_fast", "music", "gaming", "cat", "helper", "showoff", "crying", "nervous", "rage", "notification", "loading", "error", "sleep", "volume", "startup", "reconnect"}
 REACTION_PRIORITY = {"idle": 0, "application": 30, "browsing": 40, "typing": 50, "gaming": 60, "sleep": 70, "volume": 80, "after": 90, "manual": 100}
@@ -64,6 +64,8 @@ def load_config() -> dict:
         },
         "ambient_card_interval_seconds": 60,
         "ambient_card_duration_seconds": 6,
+        "idle_cameo_first_seconds": 15,
+        "idle_cameo_duration_seconds": 3.2,
         "quiet_hours": {"enabled": True, "start": "22:30", "end": "07:00", "brightness": 20},
         "automatic_brightness": {
             "enabled": True,
@@ -112,6 +114,8 @@ class Runtime:
     weather_updated: float = 0.0
     weather_error: str = ""
     unread_notifications: int = 0
+    next_idle_cameo: float = 0.0
+    idle_cameo_index: int = 0
     device_connected: bool = False
     device_port: str = ""
     device_last_seen: float = 0.0
@@ -181,7 +185,7 @@ class Runtime:
         """
         frame = self.display_frame()
         modifiers = frame["modifiers"]
-        return "LILBOT|1|{}|{}|{}|{}|{}|{}|{}\n".format(
+        return "LILBOT|1|{}|{}|{}|{}|{}|{}|{}|{}\n".format(
             frame["sequence"],
             frame["state"],
             int(round(float(frame["volume_level"]) * 100)),
@@ -189,6 +193,7 @@ class Runtime:
             int(bool(modifiers["music_bob"])),
             int(modifiers["brightness"]),
             int(bool(modifiers["pixel_shift"])),
+            int(frame["unread_notifications"]),
         )
 
     def device_status(self, connected: bool, port: str = "", reason: str = "") -> None:
@@ -453,6 +458,12 @@ def detection_loop(config: dict, stop: threading.Event) -> None:
     browsers = {x.lower() for x in config["browser_processes"]}
     media = {x.lower() for x in config["media_processes"]}
     last_media_check = 0.0
+    cameo_states = ("cat", "helper", "showoff")
+    first_cameo = max(5.0, float(config.get("idle_cameo_first_seconds", 15)))
+    cameo_interval = max(20.0, float(config.get("ambient_card_interval_seconds", 60)))
+    cameo_duration = max(1.5, min(float(config.get("idle_cameo_duration_seconds", 3.2)), 8.0))
+    with RUNTIME.lock:
+        RUNTIME.next_idle_cameo = time.monotonic() + first_cameo
     if platform.system() == "Windows":
         try:
             import comtypes  # type: ignore
@@ -489,6 +500,24 @@ def detection_loop(config: dict, stop: threading.Event) -> None:
             scroll_burst=scroll_burst, config=config, games=games,
             browsers=browsers, media=media, app_states=app_states,
         )
+        if state == "idle":
+            with RUNTIME.lock:
+                if now >= RUNTIME.next_idle_cameo:
+                    cameo = cameo_states[RUNTIME.idle_cameo_index % len(cameo_states)]
+                    RUNTIME.idle_cameo_index += 1
+                    RUNTIME.manual_state = cameo
+                    RUNTIME.manual_until = now + cameo_duration
+                    RUNTIME.next_idle_cameo = now + cameo_interval
+                    state, reason, source, priority = (
+                        cameo,
+                        f"shy-curious idle cameo: {cameo}",
+                        "manual",
+                        REACTION_PRIORITY["manual"],
+                    )
+        else:
+            with RUNTIME.lock:
+                if not manual and now >= RUNTIME.next_idle_cameo:
+                    RUNTIME.next_idle_cameo = now + cameo_interval
         RUNTIME.set_state(state, reason, source, priority)
 
 
