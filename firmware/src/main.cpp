@@ -22,8 +22,10 @@ constexpr uint32_t LINK_TIMEOUT_MS = 3000;
 
 Arduino_DataBus *bus = new Arduino_ESP32PAR8Q(
     7, 6, 8, 9, 39, 40, 41, 42, 45, 46, 47, 48);
-Arduino_GFX *gfx = new Arduino_ST7789(
+Arduino_GFX *display = new Arduino_ST7789(
     bus, 5, 0, true, 170, 320, 35, 0, 35, 0);
+Arduino_Canvas *frameCanvas = nullptr;
+Arduino_GFX *gfx = display;
 
 String activeState = "startup";
 String serialLine;
@@ -331,6 +333,7 @@ void drawFace() {
   if (musicBob || activeState == "music") drawMusicNotes();
   if (unreadNotifications > 0) drawNotificationBadge();
   if (!linked) gfx->fillCircle(308, 12, 3, purple);
+  if (frameCanvas && gfx == frameCanvas) frameCanvas->flush();
 }
 
 void setBrightness(uint8_t percent) {
@@ -458,8 +461,12 @@ void setup() {
   pinMode(BACKLIGHT_PIN, OUTPUT);
   digitalWrite(BACKLIGHT_PIN, HIGH);
   delay(250);
-  gfx->begin();
-  gfx->setRotation(1);
+  display->begin();
+  display->setRotation(1);
+  frameCanvas = new Arduino_Canvas(320, 170, display);
+  if (frameCanvas && frameCanvas->begin(GFX_SKIP_OUTPUT_BEGIN)) {
+    gfx = frameCanvas;
+  }
   cyan = gfx->color565(25, 247, 255);
   pink = gfx->color565(255, 45, 170);
   purple = gfx->color565(48, 25, 82);
