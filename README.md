@@ -69,7 +69,7 @@ as though it were the ESP32 display.
 5. Use the state buttons to simulate events that are not detected yet.
 6. Close the command window or press `Ctrl+C` to stop it.
 
-The current simulator is labeled **BUILD 1.5.5** at the top. When updating, close
+The current simulator is labeled **BUILD 1.6.0** at the top. When updating, close
 the previous Lil Bot command window and extract the new ZIP into a new folder
 instead of merging it into an older copy. If the screen still has side grips or
 a USB tab, an older preview is running.
@@ -218,6 +218,11 @@ the approved wide-set face.
 ```text
 Windows activity -> reaction resolver -> USB-C serial -> ESP32 face renderer
 ```
+
+Firmware 1.6 moves this architecture onto the physical T-Display-S3 using the
+official LILYGO board target and Arduino_GFX driver proven by the hardware
+diagnostic. The approved C2 geometry is shared by the normal, browsing, volume,
+music, sleep, and reconnect states; novelty expressions may use the full screen.
 
 The Windows companion detects media playback, configured games, browser
 scrolling, keyboard/mouse activity, volume changes, and idle time. The ESP32
