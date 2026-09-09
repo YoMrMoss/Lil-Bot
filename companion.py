@@ -27,7 +27,7 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "companion_config.json"
-BUILD_VERSION = "1.6.0"
+BUILD_VERSION = "1.6.1"
 PROTOCOL_VERSION = 1
 VALID_STATES = {"idle", "typing", "browsing", "browsing_fast", "music", "gaming", "cat", "helper", "showoff", "crying", "nervous", "rage", "notification", "loading", "error", "sleep", "volume", "startup", "reconnect"}
 REACTION_PRIORITY = {"idle": 0, "application": 30, "browsing": 40, "typing": 50, "gaming": 60, "sleep": 70, "volume": 80, "after": 90, "manual": 100}
@@ -171,6 +171,25 @@ class Runtime:
         snapshot = self.snapshot()
         keys = ("protocol_version", "sequence", "state", "display", "modifiers", "volume_level", "volume_muted", "unread_notifications")
         return {key: snapshot[key] for key in keys}
+
+    def wire_frame(self) -> str:
+        """Return the deliberately simple USB frame understood by the display.
+
+        Keeping the hardware transport free of nested JSON makes it easy to
+        diagnose in a serial terminal and avoids parser/memory differences
+        between desktop Python and the ESP32.
+        """
+        frame = self.display_frame()
+        modifiers = frame["modifiers"]
+        return "LILBOT|1|{}|{}|{}|{}|{}|{}|{}\n".format(
+            frame["sequence"],
+            frame["state"],
+            int(round(float(frame["volume_level"]) * 100)),
+            int(bool(frame["volume_muted"])),
+            int(bool(modifiers["music_bob"])),
+            int(modifiers["brightness"]),
+            int(bool(modifiers["pixel_shift"])),
+        )
 
     def device_status(self, connected: bool, port: str = "", reason: str = "") -> None:
         with self.lock:
@@ -565,8 +584,7 @@ def serial_bridge_loop(config: dict, stop: threading.Event) -> None:
             while not stop.is_set():
                 now = time.monotonic()
                 if handshake and now >= next_send:
-                    payload = json.dumps(RUNTIME.display_frame(), separators=(",", ":")) + "\n"
-                    connection.write(payload.encode("utf-8"))
+                    connection.write(RUNTIME.wire_frame().encode("ascii"))
                     next_send = now + interval
                 line = connection.readline().decode("utf-8", errors="replace").strip()
                 if line:

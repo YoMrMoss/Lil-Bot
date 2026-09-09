@@ -38,7 +38,9 @@ jobs:
         shell: bash
         run: |
           mkdir -p release/LilBot
-          cp VERSION companion.py companion_config.json display-preview.html requirements.txt start_lilbot.bat github_updater.py check_for_updates.py check_for_updates.bat README.md ENCLOSURE_NOTES.md GITHUB_UPDATES.md PROTOCOL.md release/LilBot/
+          cp VERSION companion.py companion_config.json display-preview.html requirements.txt start_lilbot.bat update_flash_start_lilbot.bat github_updater.py check_for_updates.py check_for_updates.bat README.md ENCLOSURE_NOTES.md GITHUB_UPDATES.md PROTOCOL.md release/LilBot/
+          mkdir -p release/LilBot/.vscode
+          cp .vscode/tasks.json release/LilBot/.vscode/
           mkdir -p release/LilBot/firmware
           cp firmware/platformio.ini firmware/partitions.csv firmware/README.md release/LilBot/firmware/
           cp -r firmware/src firmware/include firmware/data release/LilBot/firmware/

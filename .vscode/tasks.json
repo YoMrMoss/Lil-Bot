@@ -1,0 +1,30 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Lil Bot: Sync GitHub, flash, and start",
+      "type": "shell",
+      "command": "${workspaceFolder}\\update_flash_start_lilbot.bat",
+      "windows": {
+        "command": "& '${workspaceFolder}\\update_flash_start_lilbot.bat'"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "Lil Bot: Flash current firmware",
+      "type": "shell",
+      "command": "${env:USERPROFILE}\\.platformio\\penv\\Scripts\\platformio.exe run --project-dir '${workspaceFolder}\\firmware' --target upload",
+      "problemMatcher": "$gcc",
+      "group": "build"
+    }
+  ]
+}

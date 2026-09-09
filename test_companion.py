@@ -65,5 +65,20 @@ class TouchTests(unittest.TestCase):
         self.assertEqual(snapshot["unread_notifications"], 2)
 
 
+class HardwareProtocolTests(unittest.TestCase):
+    def setUp(self) -> None:
+        companion.APP_CONFIG = companion.load_config()
+        companion.RUNTIME = companion.Runtime()
+
+    def test_wire_frame_is_fixed_and_contains_state(self):
+        companion.RUNTIME.state = "browsing_fast"
+        companion.RUNTIME.sequence = 42
+        companion.RUNTIME.volume_level = 0.75
+        companion.RUNTIME.volume_muted = False
+        companion.RUNTIME.music_playing = True
+        frame = companion.RUNTIME.wire_frame()
+        self.assertEqual(frame, "LILBOT|1|42|browsing_fast|75|0|1|100|1\n")
+
+
 if __name__ == "__main__":
     unittest.main()

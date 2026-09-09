@@ -30,6 +30,8 @@ uint32_t sequence = 0;
 uint32_t lastFrameAt = 0;
 uint32_t lastHelloAt = 0;
 uint32_t lastDrawAt = 0;
+String lastRenderedState;
+int lastRenderedOffset = 999;
 uint32_t touchStartedAt = 0;
 uint32_t lastTapAt = 0;
 float volumeLevel = 0.5f;
@@ -130,11 +132,16 @@ void drawMusicNotes() {
 }
 
 void drawFace() {
-  if (millis() - lastDrawAt < 65) return;
-  lastDrawAt = millis();
+  const bool animated = musicBob || activeState == "music" ||
+                        activeState == "loading" || activeState == "reconnect";
+  if (animated && millis() - lastDrawAt < 90) return;
   int bob = musicBob ? -static_cast<int>((millis() / 125) % 3) * 2 : 0;
   int drift = pixelShift ? static_cast<int>((millis() / 25000) % 3) - 1 : 0;
   int yOffset = bob + drift;
+  if (!animated && activeState == lastRenderedState && yOffset == lastRenderedOffset) return;
+  lastDrawAt = millis();
+  lastRenderedState = activeState;
+  lastRenderedOffset = yOffset;
   gfx->fillScreen(BLACK);
 
   if (activeState == "gaming") {
@@ -194,12 +201,41 @@ void acceptFrame(const String &line) {
   Serial.printf("ACK:%lu\n", static_cast<unsigned long>(sequence));
 }
 
+void acceptWireFrame(const String &line) {
+  // LILBOT|protocol|sequence|state|volume%|muted|musicBob|brightness|pixelShift
+  String fields[9];
+  int start = 0;
+  for (int i = 0; i < 9; ++i) {
+    int separator = line.indexOf('|', start);
+    if (separator < 0) separator = line.length();
+    fields[i] = line.substring(start, separator);
+    start = separator + 1;
+  }
+  if (fields[0] != "LILBOT" || fields[1] != "1" || fields[3].isEmpty()) {
+    Serial.println("ERR:FRAME");
+    return;
+  }
+  sequence = static_cast<uint32_t>(fields[2].toInt());
+  activeState = fields[3];
+  volumeLevel = constrain(fields[4].toInt(), 0, 100) / 100.0f;
+  volumeMuted = fields[5].toInt() != 0;
+  musicBob = fields[6].toInt() != 0;
+  setBrightness(constrain(fields[7].toInt(), 10, 100));
+  pixelShift = fields[8].toInt() != 0;
+  linked = true;
+  lastFrameAt = millis();
+  // Force the changed state to be painted on the very next loop.
+  lastRenderedState = "";
+  Serial.printf("ACK:%lu:%s\n", static_cast<unsigned long>(sequence), activeState.c_str());
+}
+
 void pollSerial() {
   while (Serial.available()) {
     const char c = static_cast<char>(Serial.read());
     if (c == '\n') {
       serialLine.trim();
-      if (serialLine.length()) acceptFrame(serialLine);
+      if (serialLine.startsWith("LILBOT|")) acceptWireFrame(serialLine);
+      else if (serialLine.length()) acceptFrame(serialLine);
       serialLine = "";
     } else if (c != '\r' && serialLine.length() < 1024) {
       serialLine += c;

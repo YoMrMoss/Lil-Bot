@@ -15,13 +15,16 @@ Release. Once firmware development begins, the same release can also contain
 - **Now:** `start_lilbot.bat` checks GitHub Releases before launching. When a
   newer checksum-verified version exists, it asks before installing it, keeps a
   local backup, preserves `companion_config.json`, and then starts the update.
-- **After the board arrives:** add USB serial discovery and a manual **Update
-  board** action using Espressif's flashing utility.
+- **Connected-board workflow:** run `update_flash_start_lilbot.bat`, or choose
+  **Terminal > Run Build Task > Lil Bot: Sync GitHub, flash, and start** in VS
+  Code. It checks the signed release path, builds the current firmware, flashes
+  the USB-connected board, and starts the companion.
 - **Later:** offer one-click updates only after verifying the release checksum,
   board model, firmware protocol version, power state, and successful backup.
 - **Optional future:** Wi-Fi over-the-air firmware updates. USB should remain the
   recovery path if an OTA update is interrupted.
 
-Automatic unattended flashing is intentionally not enabled yet. Installing the
-wrong binary or losing power during a flash could leave the board needing a
-manual recovery.
+Unattended background flashing remains disabled because the Windows PC must
+have exclusive access to COM5 and the board must remain powered. The one-click
+task automates the complete process while keeping the upload visible and
+recoverable.
