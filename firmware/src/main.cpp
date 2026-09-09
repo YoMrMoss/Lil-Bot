@@ -56,11 +56,9 @@ void drawSmile(int x, int y, int size, uint16_t color) {
 }
 
 void drawBaseEyes(int yOffset = 0) {
-  // Approved C2 geometry: large cyan light areas with pupils formed by absence.
+  // Approved simulator geometry: solid cyan emoticon dots, without pupils.
   gfx->fillCircle(LEFT_EYE_X, EYE_Y + yOffset, EYE_SIZE / 2, cyan);
   gfx->fillCircle(RIGHT_EYE_X, EYE_Y + yOffset, EYE_SIZE / 2, cyan);
-  gfx->fillCircle(LEFT_EYE_X, EYE_Y + yOffset, 12, BLACK);
-  gfx->fillCircle(RIGHT_EYE_X, EYE_Y + yOffset, 12, BLACK);
 }
 
 void drawClosedEyes(int yOffset = 0, bool happy = false) {
@@ -215,17 +213,26 @@ void acceptWireFrame(const String &line) {
     Serial.println("ERR:FRAME");
     return;
   }
+  const String incomingState = fields[3];
+  const float incomingVolume = constrain(fields[4].toInt(), 0, 100) / 100.0f;
+  const bool incomingMuted = fields[5].toInt() != 0;
+  const bool incomingMusicBob = fields[6].toInt() != 0;
+  const bool incomingPixelShift = fields[8].toInt() != 0;
+  const bool visualChanged = incomingState != activeState ||
+      incomingMusicBob != musicBob || incomingPixelShift != pixelShift ||
+      (incomingState == "volume" &&
+       (incomingMuted != volumeMuted || abs(incomingVolume - volumeLevel) >= 0.01f));
   sequence = static_cast<uint32_t>(fields[2].toInt());
-  activeState = fields[3];
-  volumeLevel = constrain(fields[4].toInt(), 0, 100) / 100.0f;
-  volumeMuted = fields[5].toInt() != 0;
-  musicBob = fields[6].toInt() != 0;
+  activeState = incomingState;
+  volumeLevel = incomingVolume;
+  volumeMuted = incomingMuted;
+  musicBob = incomingMusicBob;
   setBrightness(constrain(fields[7].toInt(), 10, 100));
-  pixelShift = fields[8].toInt() != 0;
+  pixelShift = incomingPixelShift;
   linked = true;
   lastFrameAt = millis();
-  // Force the changed state to be painted on the very next loop.
-  lastRenderedState = "";
+  // Heartbeats keep the link alive without clearing a static LCD frame.
+  if (visualChanged) lastRenderedState = "";
   Serial.printf("ACK:%lu:%s\n", static_cast<unsigned long>(sequence), activeState.c_str());
 }
 
