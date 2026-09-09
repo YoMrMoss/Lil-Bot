@@ -27,7 +27,7 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "companion_config.json"
-BUILD_VERSION = "1.5.0"
+BUILD_VERSION = "1.5.1"
 PROTOCOL_VERSION = 1
 VALID_STATES = {"idle", "typing", "browsing", "browsing_fast", "music", "gaming", "cat", "helper", "showoff", "crying", "nervous", "rage", "notification", "loading", "error", "sleep", "volume", "startup", "reconnect"}
 REACTION_PRIORITY = {"idle": 0, "application": 30, "browsing": 40, "typing": 50, "gaming": 60, "sleep": 70, "volume": 80, "after": 90, "manual": 100}
@@ -542,7 +542,9 @@ def serial_bridge_loop(config: dict, stop: threading.Event) -> None:
         port = ""
         for port in candidate_serial_ports(preferred):
             try:
-                connection = serial.Serial(port, baud, timeout=0.05, write_timeout=0.5)
+                connection = serial.Serial(port, baud, timeout=0.10, write_timeout=2.0)
+                connection.dtr = False
+                connection.rts = False
                 break
             except (OSError, serial.SerialException):
                 connection = None
@@ -550,24 +552,32 @@ def serial_bridge_loop(config: dict, stop: threading.Event) -> None:
             RUNTIME.device_status(False, reason="waiting for Lil Bot USB display")
             stop.wait(1.0)
             continue
-        RUNTIME.device_status(True, port, f"Lil Bot display connected on {port}")
-        print(f"Lil Bot display connected on {port}.")
+        print(f"Found {port}; waiting for Lil Bot firmware handshake.")
+        handshake_deadline = time.monotonic() + 5.0
         next_send = 0.0
+        handshake = False
         try:
             while not stop.is_set():
                 now = time.monotonic()
-                if now >= next_send:
+                if handshake and now >= next_send:
                     payload = json.dumps(RUNTIME.display_frame(), separators=(",", ":")) + "\n"
                     connection.write(payload.encode("utf-8"))
                     next_send = now + interval
                 line = connection.readline().decode("utf-8", errors="replace").strip()
                 if line:
+                    if line.startswith(("READY:LILBOT/1", "HELLO:LILBOT/1")) and not handshake:
+                        handshake = True
+                        next_send = 0.0
+                        RUNTIME.device_status(True, port, f"Lil Bot display connected on {port}")
+                        print(f"Lil Bot display connected on {port}.")
                     with RUNTIME.lock:
                         RUNTIME.device_last_seen = time.time()
                     if line.startswith("TOUCH:"):
                         gesture = line.partition(":")[2].lower()
                         if gesture in {"tap", "double", "hold"}:
                             RUNTIME.touch_reaction(gesture)
+                if not handshake and now >= handshake_deadline:
+                    raise serial.SerialTimeoutException("firmware handshake timeout")
                 stop.wait(0.01)
         except (OSError, serial.SerialException) as exc:
             print(f"Lil Bot display disconnected: {exc}")

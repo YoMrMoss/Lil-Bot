@@ -3,8 +3,6 @@
 #include <Preferences.h>
 #include <TFT_eSPI.h>
 #include <Wire.h>
-#include <esp_idf_version.h>
-#include <esp_task_wdt.h>
 
 #include "face_assets.h"
 
@@ -51,7 +49,9 @@ const FaceAsset *findFace(const String &name) {
 
 void setBrightness(uint8_t percent) {
   brightness = constrain(percent, 10, 100);
-  analogWrite(kBacklight, map(brightness, 0, 100, 0, 255));
+  // Keep first hardware validation simple and deterministic. PWM dimming is
+  // enabled only after the specific board revision is confirmed.
+  digitalWrite(kBacklight, brightness > 0 ? HIGH : LOW);
 }
 
 void renderFallback(const String &name, int dx, int dy) {
@@ -96,12 +96,14 @@ void render() {
   int dy = musicBob ? static_cast<int>((millis() / 130) % 3) - 1 : 0;
   int dx = pixelShift ? static_cast<int>((millis() / 30000) % 3) - 1 : 0;
   tft.fillScreen(TFT_BLACK);
+  tft.startWrite();
   const FaceAsset *face = findFace(state);
   if (face) renderAsset(*face, dx, dy, state == "rage" || state == "crying" ? kPink : kCyan);
   else renderFallback(state, dx, dy);
   if (!connected) {
     tft.fillCircle(307, 12, 4, kPink);
   }
+  tft.endWrite();
 }
 
 bool readTouch(bool &pressed) {
@@ -181,25 +183,22 @@ void setup() {
   pinMode(kBoardPower, OUTPUT);
   digitalWrite(kBoardPower, HIGH);
   pinMode(kBacklight, OUTPUT);
+  digitalWrite(kBacklight, HIGH);
   Serial.begin(115200);
-  delay(120);
+  delay(350);
+  Serial.println("BOOT:POWER_OK");
   tft.begin();
+  Serial.println("BOOT:TFT_OK");
   tft.setRotation(1);
   tft.fillScreen(TFT_BLACK);
   Wire.begin(kTouchSda, kTouchScl);
+  Serial.println("BOOT:I2C_OK");
   pinMode(kTouchReset, OUTPUT);
   digitalWrite(kTouchReset, LOW);
   delay(5);
   digitalWrite(kTouchReset, HIGH);
   settings.begin("lilbot", false);
   setBrightness(settings.getUChar("brightness", 100));
-#if ESP_IDF_VERSION_MAJOR >= 5
-  esp_task_wdt_config_t watchdog = {.timeout_ms = 8000, .idle_core_mask = 0, .trigger_panic = true};
-  esp_task_wdt_init(&watchdog);
-#else
-  esp_task_wdt_init(8, true);
-#endif
-  esp_task_wdt_add(nullptr);
   Serial.println("READY:LILBOT/1");
 }
 
@@ -211,6 +210,5 @@ void loop() {
     state = "reconnect";
   }
   render();
-  esp_task_wdt_reset();
   delay(2);
 }
