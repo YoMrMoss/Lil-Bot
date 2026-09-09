@@ -85,18 +85,21 @@ def face(name: str) -> Canvas:
         "nervous": "⊙˛̼⊙",
         "rage": "(┛◉Д◉)┛彡┻━┻",
     }
-    if name in symbols:
+    if name in symbols and name not in {"helper", "showoff", "rage"}:
         c.emoticon(symbols[name])
     elif name == "cat":
         c.line(37,73,55,48); c.line(55,48,73,70); c.line(247,70,265,48); c.line(265,48,283,73)
         c.circle(92,82,12,5); c.circle(228,82,12,5); c.line(148,96,160,106); c.line(160,106,172,96)
         c.arc(140,112,20,0,math.pi/2,4); c.arc(180,112,20,math.pi/2,math.pi,4)
     elif name == "helper":
-        c.arc(90,88,25,math.pi,math.tau,6); c.arc(230,88,25,math.pi,math.tau,6)
-        c.arc(160,105,24,0,math.pi,5); c.line(33,108,58,122,5); c.line(58,122,45,135,5); c.line(287,108,262,122,5); c.line(262,122,275,135,5)
+        # Eager helper: familiar face plus a clear little thumbs-up.
+        c.dot(112,78,11); c.dot(208,78,11); c.arc(160,100,27,0,math.pi,8)
+        c.line(42,112,61,126,8); c.line(61,126,72,112,8); c.line(61,126,48,142,8)
+        c.line(278,112,259,126,8); c.line(259,126,248,112,8); c.line(259,126,272,142,8)
     elif name == "showoff":
-        c.line(35,75,72,75,6); c.line(248,75,285,75,6); c.line(98,116,72,132,5); c.line(222,116,248,132,5)
-        c.line(137,106,160,116,4); c.line(160,116,183,106,4)
+        # Confident "check this out" pose with block shades and open arms.
+        c.line(82,76,122,76,12); c.line(198,76,238,76,12); c.line(143,111,177,111,7)
+        c.line(25,105,55,121,7); c.line(55,121,39,139,7); c.line(295,105,265,121,7); c.line(265,121,281,139,7)
     elif name == "crying":
         c.line(62,75,112,75,7); c.line(208,75,258,75,7); c.line(112,75,124,92,6); c.line(208,75,196,92,6)
         c.arc(160,124,22,math.pi,math.tau,5); c.line(84,98,77,128,4); c.line(236,98,243,128,4)
@@ -105,10 +108,10 @@ def face(name: str) -> Canvas:
         pts=[(135,124),(145,117),(155,128),(165,117),(175,128),(185,120)]
         for a,b in zip(pts,pts[1:]): c.line(*a,*b,4)
     elif name == "rage":
-        c.line(48,66,105,88,7); c.line(272,66,215,88,7); c.circle(95,91,9,4); c.circle(225,91,9,4)
-        c.line(137,119,146,111,4); c.line(146,111,155,122,4); c.line(155,122,165,111,4); c.line(165,111,175,122,4); c.line(175,122,184,114,4)
-        c.line(18,139,135,139,5); c.line(185,139,302,139,5); c.line(34,139,45,153,4); c.line(286,139,275,153,4)
-        c.line(12,46,38,62,5); c.line(38,62,22,78,5); c.line(282,62,308,46,5); c.line(282,62,298,78,5)
+        c.line(48,55,108,82,8); c.line(272,55,212,82,8); c.circle(98,87,11,5); c.circle(222,87,11,5)
+        c.circle(160,111,15,7)
+        c.line(31,139,289,139,9); c.line(48,139,60,158,7); c.line(272,139,260,158,7)
+        c.line(14,96,43,112,7); c.line(306,74,280,91,7); c.line(300,55,276,69,6)
     elif name == "gaming":
         c.line(36,48,36,124,6); c.line(36,48,58,48,6); c.line(36,124,58,124,6)
         c.line(284,48,284,124,6); c.line(262,48,284,48,6); c.line(262,124,284,124,6)

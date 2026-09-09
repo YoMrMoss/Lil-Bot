@@ -31,8 +31,14 @@ uint32_t sequence = 0;
 uint32_t lastFrameAt = 0;
 uint32_t lastHelloAt = 0;
 uint32_t lastDrawAt = 0;
+uint32_t stateChangedAt = 0;
+uint32_t nextBlinkAt = 0;
+uint32_t blinkUntil = 0;
+uint32_t nextWinkAt = 0;
+uint32_t winkUntil = 0;
 String lastRenderedState;
 int lastRenderedOffset = 999;
+int lastRenderedGaze = 999;
 bool lastBlink = false;
 bool lastWink = false;
 uint32_t touchStartedAt = 0;
@@ -73,13 +79,16 @@ void thickLine(int x1, int y1, int x2, int y2, uint16_t color, int width = 4) {
 }
 
 void drawSmile(int x, int y, int size, uint16_t color) {
-  gfx->drawArc(x, y - 8, size / 2, size / 2 - 4, 22, 158, color);
+  // A filled lower half-circle reads as a warm, open emoticon smile.
+  const int radius = size / 2;
+  gfx->fillCircle(x, y - 8, radius, color);
+  gfx->fillRect(x - radius - 1, y - radius - 9, size + 2, radius + 1, BLACK);
 }
 
-void drawBaseEyes(int yOffset = 0) {
+void drawBaseEyes(int yOffset = 0, int gazeX = 0) {
   // Approved simulator geometry: solid cyan emoticon dots, without pupils.
-  gfx->fillCircle(LEFT_EYE_X, EYE_Y + yOffset, EYE_SIZE / 2, cyan);
-  gfx->fillCircle(RIGHT_EYE_X, EYE_Y + yOffset, EYE_SIZE / 2, cyan);
+  gfx->fillCircle(LEFT_EYE_X + gazeX, EYE_Y + yOffset, EYE_SIZE / 2, cyan);
+  gfx->fillCircle(RIGHT_EYE_X + gazeX, EYE_Y + yOffset, EYE_SIZE / 2, cyan);
 }
 
 void drawClosedEyes(int yOffset = 0, bool happy = false) {
@@ -100,14 +109,24 @@ void drawReadingGlasses(int yOffset) {
   thickLine(285, 68 + yOffset, 305, 61 + yOffset, pink, 3);
 }
 
-void drawRaceVisor(int yOffset) {
-  gfx->fillRoundRect(18, 48 + yOffset, 284, 70, 20, purple);
-  gfx->drawRoundRect(18, 48 + yOffset, 284, 70, 20, cyan);
-  thickLine(43, 54 + yOffset, 277, 54 + yOffset, pink, 5);
-  thickLine(53, 87 + yOffset, 92, 70 + yOffset, cyan, 6);
-  thickLine(92, 70 + yOffset, 72, 101 + yOffset, cyan, 6);
-  thickLine(267, 87 + yOffset, 228, 70 + yOffset, cyan, 6);
-  thickLine(228, 70 + yOffset, 248, 101 + yOffset, cyan, 6);
+void drawRaceVisor(int yOffset, float progress) {
+  // Compact helmet: retain the bot's face and slide a visor into place.
+  const int slide = static_cast<int>((1.0f - progress) * -64.0f);
+  gfx->drawRoundRect(28, 27 + yOffset, 264, 112, 32, pink);
+  gfx->drawRoundRect(30, 29 + yOffset, 260, 108, 30, pink);
+  gfx->fillRect(156, 29 + yOffset, 8, 27, pink);
+  gfx->fillRoundRect(34, 48 + yOffset + slide, 252, 62, 16, purple);
+  gfx->drawRoundRect(34, 48 + yOffset + slide, 252, 62, 16, cyan);
+  gfx->drawRoundRect(35, 49 + yOffset + slide, 250, 60, 15, cyan);
+  // Excited eyes remain visible behind the visor.
+  thickLine(65, 78 + yOffset + slide, 91, 68 + yOffset + slide, cyan, 6);
+  thickLine(91, 68 + yOffset + slide, 78, 91 + yOffset + slide, cyan, 6);
+  thickLine(255, 78 + yOffset + slide, 229, 68 + yOffset + slide, cyan, 6);
+  thickLine(229, 68 + yOffset + slide, 242, 91 + yOffset + slide, cyan, 6);
+  // Edge streaks give speed without covering the expression.
+  const int streak = (millis() / 55) % 18;
+  thickLine(2, 61 + streak, 23, 61 + streak, cyan, 3);
+  thickLine(297, 92 - streak, 318, 92 - streak, pink, 3);
 }
 
 void drawGaming(int yOffset) {
@@ -206,19 +225,33 @@ void drawMusicNotes() {
 
 void drawFace() {
   const uint32_t now = millis();
-  const bool blinkNow = activeState == "idle" && now > 1200 && (now % 3600) < 110;
-  const bool winkNow = activeState == "idle" && now > 2500 && (now % 11500) < 650;
+  if (static_cast<int32_t>(now - nextBlinkAt) >= 0 && now >= blinkUntil) {
+    blinkUntil = now + 105;
+    nextBlinkAt = now + random(2600, 6100);
+  }
+  if (static_cast<int32_t>(now - nextWinkAt) >= 0 && now >= winkUntil) {
+    winkUntil = now + 520;
+    nextWinkAt = now + random(11000, 22000);
+  }
+  const bool blinkNow = activeState == "idle" && now < blinkUntil;
+  const bool winkNow = activeState == "idle" && !blinkNow && now < winkUntil;
+  const bool quietMotion = brightness <= 20;
   const bool animated = musicBob || activeState == "music" ||
                         activeState == "loading" || activeState == "reconnect" ||
+                        activeState == "browsing_fast" ||
                         blinkNow != lastBlink || winkNow != lastWink;
   if (animated && millis() - lastDrawAt < 90) return;
-  int bob = musicBob ? -static_cast<int>((millis() / 125) % 3) * 2 : 0;
+  int bobStrength = quietMotion ? 1 : 2 + static_cast<int>(volumeLevel * 2.0f);
+  int bob = musicBob ? -static_cast<int>((millis() / 125) % 3) * bobStrength : 0;
   int drift = pixelShift ? static_cast<int>((millis() / 25000) % 3) - 1 : 0;
   int yOffset = bob + drift;
-  if (!animated && activeState == lastRenderedState && yOffset == lastRenderedOffset) return;
+  int gazeX = (activeState == "idle" && !quietMotion)
+      ? (static_cast<int>((millis() / 4200) % 3) - 1) * 4 : 0;
+  if (!animated && activeState == lastRenderedState && yOffset == lastRenderedOffset && gazeX == lastRenderedGaze) return;
   lastDrawAt = millis();
   lastRenderedState = activeState;
   lastRenderedOffset = yOffset;
+  lastRenderedGaze = gazeX;
   lastBlink = blinkNow;
   lastWink = winkNow;
   gfx->fillScreen(BLACK);
@@ -228,7 +261,8 @@ void drawFace() {
   } else if (activeState == "gaming") {
     if (!drawAssetFace("gaming", yOffset, cyan)) drawGaming(yOffset);
   } else if (activeState == "browsing_fast") {
-    drawRaceVisor(yOffset);
+    float progress = constrain((now - stateChangedAt) / 420.0f, 0.0f, 1.0f);
+    drawRaceVisor(yOffset, progress);
     drawSmile(MOUTH_X, MOUTH_Y + yOffset, MOUTH_SIZE, pink);
   } else if (activeState == "sleep") {
     drawClosedEyes(yOffset);
@@ -275,7 +309,7 @@ void drawFace() {
         drawBarEye(RIGHT_EYE_X, yOffset);
       }
     } else {
-      drawBaseEyes(yOffset);
+      drawBaseEyes(yOffset, gazeX);
     }
     if (activeState == "browsing") drawReadingGlasses(yOffset);
     if (activeState == "crying") {
@@ -352,6 +386,7 @@ void acceptWireFrame(const String &line) {
       (incomingState == "volume" &&
        (incomingMuted != volumeMuted || abs(incomingVolume - volumeLevel) >= 0.01f));
   sequence = static_cast<uint32_t>(fields[2].toInt());
+  if (incomingState != activeState) stateChangedAt = millis();
   activeState = incomingState;
   volumeLevel = incomingVolume;
   volumeMuted = incomingMuted;
@@ -438,6 +473,10 @@ void setup() {
   delay(5);
   digitalWrite(TOUCH_RESET, HIGH);
   Serial.begin(115200);
+  randomSeed(esp_random());
+  nextBlinkAt = millis() + random(1800, 4200);
+  nextWinkAt = millis() + random(7000, 14000);
+  stateChangedAt = millis();
   delay(100);
   Serial.println("READY:LILBOT/1");
 }
