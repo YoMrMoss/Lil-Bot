@@ -27,9 +27,9 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "companion_config.json"
-BUILD_VERSION = "1.7.0"
+BUILD_VERSION = "1.8.0"
 PROTOCOL_VERSION = 1
-VALID_STATES = {"idle", "typing", "browsing", "browsing_fast", "music", "gaming", "cat", "helper", "showoff", "crying", "nervous", "rage", "notification", "loading", "error", "sleep", "volume", "startup", "reconnect"}
+VALID_STATES = {"idle", "typing", "browsing", "browsing_fast", "music", "gaming", "cat", "helper", "showoff", "crying", "nervous", "rage", "notification", "loading", "error", "sleep", "volume", "startup", "reconnect", "time", "weather"}
 REACTION_PRIORITY = {"idle": 0, "application": 30, "browsing": 40, "typing": 50, "gaming": 60, "sleep": 70, "volume": 80, "after": 90, "manual": 100}
 
 
@@ -55,10 +55,10 @@ def load_config() -> dict:
         "media_processes": ["spotify.exe", "musicbee.exe", "vlc.exe"],
         "open_browser_on_start": True,
         "weather": {
-            "enabled": False,
-            "location_label": "Set your location",
-            "latitude": 0.0,
-            "longitude": 0.0,
+                "enabled": True,
+                "location_label": "Central Connecticut",
+                "latitude": 41.6612,
+                "longitude": -72.7795,
             "temperature_unit": "fahrenheit",
             "refresh_seconds": 900,
         },
@@ -80,7 +80,12 @@ def load_config() -> dict:
     }
     if CONFIG_PATH.exists():
         try:
-            defaults.update(json.loads(CONFIG_PATH.read_text(encoding="utf-8")))
+            saved = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+            # Migrate the original placeholder to this Lil Bot's local forecast.
+            weather = saved.get("weather", {})
+            if weather.get("location_label") == "Set your location" and not weather.get("latitude"):
+                saved["weather"] = defaults["weather"].copy()
+            defaults.update(saved)
         except (OSError, json.JSONDecodeError) as exc:
             print(f"Warning: could not read {CONFIG_PATH.name}: {exc}")
     return defaults
@@ -173,7 +178,7 @@ class Runtime:
 
     def display_frame(self) -> dict:
         snapshot = self.snapshot()
-        keys = ("protocol_version", "sequence", "state", "display", "modifiers", "volume_level", "volume_muted", "unread_notifications")
+        keys = ("protocol_version", "sequence", "state", "display", "modifiers", "volume_level", "volume_muted", "unread_notifications", "ambient")
         return {key: snapshot[key] for key in keys}
 
     def wire_frame(self) -> str:
@@ -185,7 +190,10 @@ class Runtime:
         """
         frame = self.display_frame()
         modifiers = frame["modifiers"]
-        return "LILBOT|1|{}|{}|{}|{}|{}|{}|{}|{}\n".format(
+        clock = time.strftime("%I:%M %p").lstrip("0")
+        temperature = "--" if frame["ambient"]["temperature"] is None else str(round(float(frame["ambient"]["temperature"])))
+        location = str(frame["ambient"]["location"] or "LOCAL").replace("|", "/")[:24]
+        return "LILBOT|1|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}\n".format(
             frame["sequence"],
             frame["state"],
             int(round(float(frame["volume_level"]) * 100)),
@@ -194,6 +202,9 @@ class Runtime:
             int(modifiers["brightness"]),
             int(bool(modifiers["pixel_shift"])),
             int(frame["unread_notifications"]),
+            clock,
+            temperature,
+            location,
         )
 
     def device_status(self, connected: bool, port: str = "", reason: str = "") -> None:
@@ -458,7 +469,7 @@ def detection_loop(config: dict, stop: threading.Event) -> None:
     browsers = {x.lower() for x in config["browser_processes"]}
     media = {x.lower() for x in config["media_processes"]}
     last_media_check = 0.0
-    cameo_states = ("cat", "helper", "showoff")
+    cameo_states = ("time", "weather", "cat", "helper", "showoff")
     first_cameo = max(5.0, float(config.get("idle_cameo_first_seconds", 15)))
     cameo_interval = max(20.0, float(config.get("ambient_card_interval_seconds", 60)))
     cameo_duration = max(1.5, min(float(config.get("idle_cameo_duration_seconds", 3.2)), 8.0))
@@ -504,9 +515,12 @@ def detection_loop(config: dict, stop: threading.Event) -> None:
             with RUNTIME.lock:
                 if now >= RUNTIME.next_idle_cameo:
                     cameo = cameo_states[RUNTIME.idle_cameo_index % len(cameo_states)]
+                    if cameo == "weather" and RUNTIME.temperature is None:
+                        cameo = "helper"
                     RUNTIME.idle_cameo_index += 1
                     RUNTIME.manual_state = cameo
-                    RUNTIME.manual_until = now + cameo_duration
+                    duration = float(config.get("ambient_card_duration_seconds", 6)) if cameo in {"time", "weather"} else cameo_duration
+                    RUNTIME.manual_until = now + duration
                     RUNTIME.next_idle_cameo = now + cameo_interval
                     state, reason, source, priority = (
                         cameo,

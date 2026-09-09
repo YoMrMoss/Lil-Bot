@@ -30,10 +30,10 @@
   ],
   "open_browser_on_start": true,
   "weather": {
-    "enabled": false,
-    "location_label": "Set your location",
-    "latitude": 0.0,
-    "longitude": 0.0,
+    "enabled": true,
+    "location_label": "Central Connecticut",
+    "latitude": 41.6612,
+    "longitude": -72.7795,
     "temperature_unit": "fahrenheit",
     "refresh_seconds": 900
   },

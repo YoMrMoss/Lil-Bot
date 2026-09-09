@@ -33,6 +33,8 @@ uint32_t lastHelloAt = 0;
 uint32_t lastDrawAt = 0;
 String lastRenderedState;
 int lastRenderedOffset = 999;
+bool lastBlink = false;
+bool lastWink = false;
 uint32_t touchStartedAt = 0;
 uint32_t lastTapAt = 0;
 float volumeLevel = 0.5f;
@@ -40,6 +42,9 @@ bool volumeMuted = false;
 bool musicBob = false;
 bool pixelShift = true;
 uint16_t unreadNotifications = 0;
+String clockText = "--:--";
+String temperatureText = "--";
+String locationText = "LOCAL";
 bool linked = false;
 bool touchDown = false;
 uint8_t brightness = 80;
@@ -146,6 +151,28 @@ void drawNotificationBadge() {
   gfx->print(unreadNotifications > 99 ? 99 : unreadNotifications);
 }
 
+void drawCenteredText(const String &text, int y, uint8_t size, uint16_t color) {
+  gfx->setTextSize(size);
+  gfx->setTextColor(color);
+  int16_t x1, y1;
+  uint16_t width, height;
+  gfx->getTextBounds(text, 0, y, &x1, &y1, &width, &height);
+  gfx->setCursor((320 - static_cast<int>(width)) / 2, y);
+  gfx->print(text);
+}
+
+void drawInformationCard(bool weatherCard) {
+  if (weatherCard) {
+    drawCenteredText(temperatureText + " F", 48, 7, cyan);
+    drawCenteredText("CURRENT TEMPERATURE", 118, 1, pink);
+    drawCenteredText(locationText, 138, 1, purple);
+  } else {
+    drawCenteredText(clockText, 48, 5, cyan);
+    drawCenteredText("JUST A QUICK TIME CHECK", 116, 1, pink);
+    drawCenteredText("READY IF YOU NEED ME", 138, 1, purple);
+  }
+}
+
 void drawVolumeStatus() {
   const int bars = volumeMuted ? 0 : constrain(static_cast<int>(volumeLevel * 8.0f + 0.5f), 1, 8);
   for (int i = 0; i < 8; ++i) {
@@ -178,8 +205,12 @@ void drawMusicNotes() {
 }
 
 void drawFace() {
+  const uint32_t now = millis();
+  const bool blinkNow = activeState == "idle" && now > 1200 && (now % 3600) < 110;
+  const bool winkNow = activeState == "idle" && now > 2500 && (now % 11500) < 650;
   const bool animated = musicBob || activeState == "music" ||
-                        activeState == "loading" || activeState == "reconnect";
+                        activeState == "loading" || activeState == "reconnect" ||
+                        blinkNow != lastBlink || winkNow != lastWink;
   if (animated && millis() - lastDrawAt < 90) return;
   int bob = musicBob ? -static_cast<int>((millis() / 125) % 3) * 2 : 0;
   int drift = pixelShift ? static_cast<int>((millis() / 25000) % 3) - 1 : 0;
@@ -188,9 +219,13 @@ void drawFace() {
   lastDrawAt = millis();
   lastRenderedState = activeState;
   lastRenderedOffset = yOffset;
+  lastBlink = blinkNow;
+  lastWink = winkNow;
   gfx->fillScreen(BLACK);
 
-  if (activeState == "gaming") {
+  if (activeState == "time" || activeState == "weather") {
+    drawInformationCard(activeState == "weather");
+  } else if (activeState == "gaming") {
     if (!drawAssetFace("gaming", yOffset, cyan)) drawGaming(yOffset);
   } else if (activeState == "browsing_fast") {
     drawRaceVisor(yOffset);
@@ -231,7 +266,17 @@ void drawFace() {
     drawAssetFace(activeState, yOffset,
                   (activeState == "crying" || activeState == "rage") ? pink : cyan);
   } else {
-    drawBaseEyes(yOffset);
+    if (activeState == "idle" && (blinkNow || winkNow)) {
+      if (blinkNow) {
+        drawBarEye(LEFT_EYE_X, yOffset);
+        drawBarEye(RIGHT_EYE_X, yOffset);
+      } else {
+        gfx->fillCircle(LEFT_EYE_X, EYE_Y + yOffset, EYE_SIZE / 2, cyan);
+        drawBarEye(RIGHT_EYE_X, yOffset);
+      }
+    } else {
+      drawBaseEyes(yOffset);
+    }
     if (activeState == "browsing") drawReadingGlasses(yOffset);
     if (activeState == "crying") {
       gfx->fillTriangle(LEFT_EYE_X, 115, LEFT_EYE_X - 6, 128, LEFT_EYE_X + 6, 128, cyan);
@@ -279,9 +324,9 @@ void acceptFrame(const String &line) {
 
 void acceptWireFrame(const String &line) {
   // LILBOT|protocol|sequence|state|volume%|muted|musicBob|brightness|pixelShift|unread
-  String fields[10];
+  String fields[13];
   int start = 0;
-  for (int i = 0; i < 10; ++i) {
+  for (int i = 0; i < 13; ++i) {
     int separator = line.indexOf('|', start);
     if (separator < 0) separator = line.length();
     fields[i] = line.substring(start, separator);
@@ -297,9 +342,13 @@ void acceptWireFrame(const String &line) {
   const bool incomingMusicBob = fields[6].toInt() != 0;
   const bool incomingPixelShift = fields[8].toInt() != 0;
   const uint16_t incomingUnread = constrain(fields[9].toInt(), 0, 999);
+  const String incomingClock = fields[10];
+  const String incomingTemperature = fields[11];
+  const String incomingLocation = fields[12];
   const bool visualChanged = incomingState != activeState ||
       incomingMusicBob != musicBob || incomingPixelShift != pixelShift ||
-      incomingUnread != unreadNotifications ||
+      incomingUnread != unreadNotifications || incomingClock != clockText ||
+      incomingTemperature != temperatureText || incomingLocation != locationText ||
       (incomingState == "volume" &&
        (incomingMuted != volumeMuted || abs(incomingVolume - volumeLevel) >= 0.01f));
   sequence = static_cast<uint32_t>(fields[2].toInt());
@@ -310,6 +359,9 @@ void acceptWireFrame(const String &line) {
   setBrightness(constrain(fields[7].toInt(), 10, 100));
   pixelShift = incomingPixelShift;
   unreadNotifications = incomingUnread;
+  clockText = incomingClock;
+  temperatureText = incomingTemperature;
+  locationText = incomingLocation;
   linked = true;
   lastFrameAt = millis();
   // Heartbeats keep the link alive without clearing a static LCD frame.

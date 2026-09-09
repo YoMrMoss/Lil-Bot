@@ -10,6 +10,8 @@ from __future__ import annotations
 import struct
 from pathlib import Path
 
+from PIL import Image, ImageDraw, ImageFont
+
 ROOT = Path(__file__).resolve().parents[1]
 ASSET_DIR = ROOT / "firmware" / "data" / "faces"
 HEADER = ROOT / "firmware" / "include" / "face_assets.h"
@@ -53,11 +55,39 @@ class Canvas:
             if value: out[index//8] |= 0x80 >> (index%8)
         return bytes(out)
 
+    def emoticon(self, text: str, max_width: int = 294, max_height: int = 104):
+        """Rasterize the same emoticon text used by the browser simulator."""
+        font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+        size = 72
+        while size > 10:
+            font = ImageFont.truetype(font_path, size)
+            left, top, right, bottom = font.getbbox(text, stroke_width=1)
+            if right - left <= max_width and bottom - top <= max_height:
+                break
+            size -= 1
+        image = Image.new("1", (WIDTH, HEIGHT))
+        draw = ImageDraw.Draw(image)
+        left, top, right, bottom = font.getbbox(text, stroke_width=1)
+        x = (WIDTH - (right - left)) // 2 - left
+        y = (HEIGHT - (bottom - top)) // 2 - top
+        draw.text((x, y), text, font=font, fill=1, stroke_width=1, stroke_fill=1)
+        self.pixels[:] = bytes(image.getdata())
+
 
 def face(name: str) -> Canvas:
     import math
     c = Canvas()
-    if name == "cat":
+    symbols = {
+        "cat": "≽^•⩊•^≼",
+        "helper": "(ദ്ദി˙ᗜ˙)",
+        "showoff": "(つ▀¯▀ )つ",
+        "crying": "(T⌓T)",
+        "nervous": "⊙˛̼⊙",
+        "rage": "(┛◉Д◉)┛彡┻━┻",
+    }
+    if name in symbols:
+        c.emoticon(symbols[name])
+    elif name == "cat":
         c.line(37,73,55,48); c.line(55,48,73,70); c.line(247,70,265,48); c.line(265,48,283,73)
         c.circle(92,82,12,5); c.circle(228,82,12,5); c.line(148,96,160,106); c.line(160,106,172,96)
         c.arc(140,112,20,0,math.pi/2,4); c.arc(180,112,20,math.pi/2,math.pi,4)
