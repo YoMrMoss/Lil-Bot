@@ -12,6 +12,9 @@ class ReactionPriorityTests(unittest.TestCase):
             idle=0.0,
             manual=None,
             after=None,
+            director=None,
+            director_reason="",
+            director_priority=companion.REACTION_PRIORITY["director"],
             volume_recent=False,
             volume_level=0.5,
             volume_muted=False,
@@ -41,6 +44,10 @@ class ReactionPriorityTests(unittest.TestCase):
     def test_manual_beats_everything(self):
         self.assertEqual(self.choose(process="wow.exe", volume_recent=True, manual="rage")[0], "rage")
 
+    def test_director_beats_game_but_not_volume(self):
+        self.assertEqual(self.choose(process="wow.exe", director="showoff")[0], "showoff")
+        self.assertEqual(self.choose(process="wow.exe", director="showoff", volume_recent=True)[0], "volume")
+
 
 class TouchTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -63,6 +70,17 @@ class TouchTests(unittest.TestCase):
         snapshot = companion.RUNTIME.snapshot()
         self.assertEqual(snapshot["state"], "sleep")
         self.assertEqual(snapshot["unread_notifications"], 2)
+
+
+class EmotionDirectorTests(unittest.TestCase):
+    def setUp(self) -> None:
+        companion.APP_CONFIG = companion.load_config()
+        companion.RUNTIME = companion.Runtime()
+
+    def test_cooldown_prevents_immediate_repeat(self):
+        self.assertTrue(companion.RUNTIME.direct_reaction("cat", 1, "test", cooldown=30))
+        self.assertFalse(companion.RUNTIME.direct_reaction("cat", 1, "test", cooldown=30))
+        self.assertIn("cooldown", companion.RUNTIME.diagnostic_log()[0]["reason"])
 
 
 class HardwareProtocolTests(unittest.TestCase):

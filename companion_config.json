@@ -41,6 +41,15 @@
   "ambient_card_duration_seconds": 6,
   "idle_cameo_first_seconds": 15,
   "idle_cameo_duration_seconds": 3.2,
+  "emotion_director": {
+    "enabled": true,
+    "cameo_interval_min_seconds": 35,
+    "cameo_interval_max_seconds": 45,
+    "cameo_repeat_cooldown_seconds": 180,
+    "showoff_cooldown_seconds": 120,
+    "cat_cooldown_seconds": 180,
+    "connection_cooldown_seconds": 60
+  },
   "quiet_hours": {
     "enabled": true,
     "start": "22:30",

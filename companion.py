@@ -13,6 +13,7 @@ import json
 import mimetypes
 import os
 import platform
+import random
 import threading
 import time
 import webbrowser
@@ -27,10 +28,10 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "companion_config.json"
-BUILD_VERSION = "1.12.0"
+BUILD_VERSION = "2.0.0"
 PROTOCOL_VERSION = 1
 VALID_STATES = {"idle", "typing", "browsing", "browsing_fast", "music", "gaming", "cat", "helper", "showoff", "crying", "nervous", "rage", "notification", "loading", "error", "sleep", "volume", "startup", "reconnect", "time", "weather"}
-REACTION_PRIORITY = {"idle": 0, "application": 30, "browsing": 40, "typing": 50, "gaming": 60, "sleep": 70, "volume": 80, "after": 90, "manual": 100}
+REACTION_PRIORITY = {"idle": 0, "application": 30, "browsing": 40, "typing": 50, "gaming": 60, "director": 65, "sleep": 70, "volume": 80, "after": 90, "manual": 100}
 
 
 def load_config() -> dict:
@@ -66,6 +67,15 @@ def load_config() -> dict:
         "ambient_card_duration_seconds": 6,
         "idle_cameo_first_seconds": 15,
         "idle_cameo_duration_seconds": 3.2,
+        "emotion_director": {
+            "enabled": True,
+            "cameo_interval_min_seconds": 35,
+            "cameo_interval_max_seconds": 45,
+            "cameo_repeat_cooldown_seconds": 180,
+            "showoff_cooldown_seconds": 120,
+            "cat_cooldown_seconds": 180,
+            "connection_cooldown_seconds": 60,
+        },
         "quiet_hours": {"enabled": True, "start": "22:30", "end": "07:00", "brightness": 20},
         "automatic_brightness": {
             "enabled": True,
@@ -121,6 +131,11 @@ class Runtime:
     unread_notifications: int = 0
     next_idle_cameo: float = 0.0
     idle_cameo_index: int = 0
+    director_state: str | None = None
+    director_until: float = 0.0
+    director_reason: str = ""
+    director_priority: int = REACTION_PRIORITY["director"]
+    director_cooldowns: dict[str, float] = field(default_factory=dict, repr=False)
     device_connected: bool = False
     device_port: str = ""
     device_last_seen: float = 0.0
@@ -228,6 +243,26 @@ class Runtime:
     def diagnostic_log(self) -> list[dict]:
         with self.lock:
             return list(self.events)
+
+    def direct_reaction(self, state: str, duration: float, reason: str,
+                        *, cooldown: float = 0.0, priority: int | None = None) -> bool:
+        """Request a short contextual emotion without replacing core detection."""
+        now = time.monotonic()
+        with self.lock:
+            ready_at = self.director_cooldowns.get(state, 0.0)
+            if now < ready_at:
+                remaining = max(1, round(ready_at - now))
+                self.events.appendleft({"time": time.time(), "state": self.state,
+                    "reason": f"emotion director skipped {state}; cooldown {remaining}s",
+                    "source": "director", "priority": self.priority, "sequence": self.sequence})
+                return False
+            self.director_state = state
+            self.director_until = now + max(0.2, duration)
+            self.director_reason = reason
+            self.director_priority = REACTION_PRIORITY["director"] if priority is None else priority
+            if cooldown:
+                self.director_cooldowns[state] = now + cooldown
+            return True
 
     def add_notification(self) -> int:
         with self.lock:
@@ -425,15 +460,16 @@ def install_activity_listeners() -> None:
 
 
 def choose_reaction(*, now: float, process: str, idle: float, manual: str | None,
-                    after: str | None, volume_recent: bool, volume_level: float,
+                    after: str | None, director: str | None, director_reason: str,
+                    director_priority: int, volume_recent: bool, volume_level: float,
                     volume_muted: bool, last_key: float, last_scroll: float,
                     scroll_burst: int, config: dict, games: set[str],
                     browsers: set[str], media: set[str], app_states: dict[str, str]) -> tuple[str, str, str, int]:
     """Resolve competing inputs by explicit priority, then return one reaction."""
     candidates: list[tuple[int, str, str, str]] = []
 
-    def add(source: str, state: str, reason: str) -> None:
-        candidates.append((REACTION_PRIORITY[source], state, reason, source))
+    def add(source: str, state: str, reason: str, priority: int | None = None) -> None:
+        candidates.append((REACTION_PRIORITY[source] if priority is None else priority, state, reason, source))
 
     add("idle", "idle", f"foreground: {process}")
     mapped = app_states.get(process)
@@ -455,6 +491,8 @@ def choose_reaction(*, now: float, process: str, idle: float, manual: str | None
     if volume_recent:
         muted = " muted" if volume_muted else ""
         add("volume", "volume", f"system volume {round(volume_level * 100)}%{muted}")
+    if director:
+        add("director", director, director_reason or "contextual emotion", director_priority)
     if after:
         add("after", after, "bashful after-reaction following touchscreen table flip")
     if manual:
@@ -469,12 +507,20 @@ def detection_loop(config: dict, stop: threading.Event) -> None:
     browsers = {x.lower() for x in config["browser_processes"]}
     media = {x.lower() for x in config["media_processes"]}
     last_media_check = 0.0
-    cameo_states = ("time", "weather", "cat", "helper", "showoff")
+    director_config = config.get("emotion_director", {})
+    director_enabled = bool(director_config.get("enabled", True))
+    cameo_states = ["time", "weather", "cat", "helper", "showoff", "nervous", "crying"]
+    random.shuffle(cameo_states)
     first_cameo = max(5.0, float(config.get("idle_cameo_first_seconds", 15)))
-    cameo_interval = max(20.0, float(config.get("ambient_card_interval_seconds", 60)))
+    cameo_min = max(20.0, float(director_config.get("cameo_interval_min_seconds", 35)))
+    cameo_max = max(cameo_min, float(director_config.get("cameo_interval_max_seconds", 45)))
     cameo_duration = max(1.5, min(float(config.get("idle_cameo_duration_seconds", 3.2)), 8.0))
     with RUNTIME.lock:
         RUNTIME.next_idle_cameo = time.monotonic() + first_cameo
+    previous_process = ""
+    previous_state = "idle"
+    typing_started = 0.0
+    mouse_was_active = False
     if platform.system() == "Windows":
         try:
             import comtypes  # type: ignore
@@ -503,9 +549,30 @@ def detection_loop(config: dict, stop: threading.Event) -> None:
                 RUNTIME.manual_state = None
             if not after:
                 RUNTIME.after_state = None
+            director = RUNTIME.director_state if now < RUNTIME.director_until else None
+            director_reason = RUNTIME.director_reason
+            director_priority = RUNTIME.director_priority
+            if not director:
+                RUNTIME.director_state = None
+
+        if director_enabled:
+            mapped = app_states.get(process)
+            if previous_process and process != previous_process and (process in games or process in media or mapped in {"gaming", "music"}):
+                RUNTIME.direct_reaction("loading", 1.25, f"opening {process}; getting ready to help", cooldown=8, priority=75)
+            if previous_state == "browsing_fast" and now - last_scroll > float(config["browsing_hold_seconds"]):
+                RUNTIME.direct_reaction("showoff", 1.8, "finished a high-speed web run", cooldown=float(director_config.get("showoff_cooldown_seconds", 120)))
+            mouse_active = bool(RUNTIME.last_mouse and now - RUNTIME.last_mouse < 0.5)
+            if mouse_was_active and not mouse_active and idle < 3 and process not in games | media:
+                RUNTIME.direct_reaction("cat", 1.7, "mouse activity stopped; curious cat peek", cooldown=float(director_config.get("cat_cooldown_seconds", 180)))
+            mouse_was_active = mouse_active
+            with RUNTIME.lock:
+                director = RUNTIME.director_state if now < RUNTIME.director_until else None
+                director_reason = RUNTIME.director_reason
+                director_priority = RUNTIME.director_priority
 
         state, reason, source, priority = choose_reaction(
             now=now, process=process, idle=idle, manual=manual, after=after,
+            director=director, director_reason=director_reason, director_priority=director_priority,
             volume_recent=volume_recent, volume_level=volume_level,
             volume_muted=volume_muted, last_key=last_key, last_scroll=last_scroll,
             scroll_burst=scroll_burst, config=config, games=games,
@@ -513,7 +580,9 @@ def detection_loop(config: dict, stop: threading.Event) -> None:
         )
         if state == "idle":
             with RUNTIME.lock:
-                if now >= RUNTIME.next_idle_cameo:
+                if director_enabled and now >= RUNTIME.next_idle_cameo:
+                    if RUNTIME.idle_cameo_index and RUNTIME.idle_cameo_index % len(cameo_states) == 0:
+                        random.shuffle(cameo_states)
                     cameo = cameo_states[RUNTIME.idle_cameo_index % len(cameo_states)]
                     if cameo == "weather" and RUNTIME.temperature is None:
                         cameo = "helper"
@@ -521,7 +590,8 @@ def detection_loop(config: dict, stop: threading.Event) -> None:
                     RUNTIME.manual_state = cameo
                     duration = float(config.get("ambient_card_duration_seconds", 6)) if cameo in {"time", "weather"} else cameo_duration
                     RUNTIME.manual_until = now + duration
-                    RUNTIME.next_idle_cameo = now + cameo_interval
+                    RUNTIME.director_cooldowns[cameo] = now + float(director_config.get("cameo_repeat_cooldown_seconds", 180))
+                    RUNTIME.next_idle_cameo = now + random.uniform(cameo_min, cameo_max)
                     state, reason, source, priority = (
                         cameo,
                         f"shy-curious idle cameo: {cameo}",
@@ -531,8 +601,15 @@ def detection_loop(config: dict, stop: threading.Event) -> None:
         else:
             with RUNTIME.lock:
                 if not manual and now >= RUNTIME.next_idle_cameo:
-                    RUNTIME.next_idle_cameo = now + cameo_interval
+                    RUNTIME.next_idle_cameo = now + random.uniform(cameo_min, cameo_max)
         RUNTIME.set_state(state, reason, source, priority)
+        if state == "typing" and not typing_started:
+            typing_started = now
+        elif previous_state == "typing" and state != "typing":
+            if director_enabled and typing_started and now - typing_started >= 8:
+                RUNTIME.direct_reaction("showoff", 1.8, "finished a focused typing streak", cooldown=float(director_config.get("showoff_cooldown_seconds", 120)))
+            typing_started = 0.0
+        previous_process, previous_state = process, state
 
 
 def weather_loop(config: dict, stop: threading.Event) -> None:
@@ -636,6 +713,7 @@ def serial_bridge_loop(config: dict, stop: threading.Event) -> None:
                         next_send = 0.0
                         RUNTIME.device_status(True, port, f"Lil Bot display connected on {port}")
                         print(f"Lil Bot display connected on {port}.")
+                        RUNTIME.direct_reaction("reconnect", 1.5, "USB display reconnected; happy you came back", cooldown=30, priority=85)
                     with RUNTIME.lock:
                         RUNTIME.device_last_seen = time.time()
                     if line.startswith("TOUCH:"):
@@ -647,6 +725,7 @@ def serial_bridge_loop(config: dict, stop: threading.Event) -> None:
                 stop.wait(0.01)
         except (OSError, serial.SerialException) as exc:
             print(f"Lil Bot display disconnected: {exc}")
+            RUNTIME.direct_reaction("error", 1.2, "USB display connection was interrupted", cooldown=float(config.get("emotion_director", {}).get("connection_cooldown_seconds", 60)), priority=85)
         finally:
             connection.close()
             RUNTIME.device_status(False, reason=f"Lil Bot display disconnected from {port}")

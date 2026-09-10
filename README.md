@@ -69,7 +69,7 @@ as though it were the ESP32 display.
 5. Use the state buttons to simulate events that are not detected yet.
 6. Close the command window or press `Ctrl+C` to stop it.
 
-The current simulator is labeled **BUILD 1.12.0** at the top. When updating, close
+The current simulator is labeled **BUILD 2.0.0** at the top. When updating, close
 the previous Lil Bot command window and extract the new ZIP into a new folder
 instead of merging it into an older copy. If the screen still has side grips or
 a USB tab, an older preview is running.
@@ -131,6 +131,21 @@ During idle, Lil Bot alternates brief full-screen time and local-temperature
 cards before returning to the approved face. Weather coordinates, units, and
 refresh timing are configured under `weather` in `companion_config.json`.
 Temperature data is provided by Open-Meteo under CC BY 4.0.
+
+## v2 emotion director
+
+Version 2 adds context-aware variety without interrupting important reactions.
+Idle cameos use a shuffled deck and per-face cooldowns; loading appears when a
+configured game or media app launches; showoff celebrates rapid browsing or a
+focused typing streak; and cat may peek in after mouse activity stops. USB
+disconnect and reconnect moments receive short error/reconnect reactions.
+Volume, sleep, touch, and manual states retain higher priority.
+
+The rage reaction uses the approved Rage A artwork: wide angular cyan eyes with
+black absence-of-light pupils, hot-pink cheeks and zigzag mouth, and purple
+corner anger marks. Its expression pulses by only a few pixels instead of
+shaking the whole frame. The diagnostic log records both activations and faces
+suppressed by cooldowns, making unexpected state choices easier to explain.
 
 Public releases keep weather disabled and use blank coordinates so personal
 location data is never committed to GitHub. Set `enabled` to `true` and add your

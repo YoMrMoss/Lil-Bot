@@ -407,6 +407,34 @@ void drawMusicNotes() {
   thickLine(right + 5, 9, right + 15, 12, cyan, 3);
 }
 
+void drawRageFace(int yOffset) {
+  // Rage A: sharp cyan eyes, absence-of-light pupils, and a restrained pulse.
+  const int phase = (millis() / 180) % 4;
+  const int pulse = phase < 2 ? phase : 4 - phase;
+  const int eyeGrow = pulse * 2;
+  gfx->fillTriangle(32 - eyeGrow, 57 + yOffset - eyeGrow,
+                    124 + eyeGrow, 75 + yOffset,
+                    50 - eyeGrow, 111 + yOffset + eyeGrow, cyan);
+  gfx->fillTriangle(288 + eyeGrow, 57 + yOffset - eyeGrow,
+                    196 - eyeGrow, 75 + yOffset,
+                    270 + eyeGrow, 111 + yOffset + eyeGrow, cyan);
+  gfx->fillTriangle(68, 74 + yOffset, 119, 79 + yOffset, 83, 98 + yOffset, BLACK);
+  gfx->fillTriangle(252, 74 + yOffset, 201, 79 + yOffset, 237, 98 + yOffset, BLACK);
+  gfx->fillRect(43 - pulse, 119 + yOffset, 35 + pulse * 2, 7 + pulse, pink);
+  gfx->fillRect(242 - pulse, 119 + yOffset, 35 + pulse * 2, 7 + pulse, pink);
+  const int mouthY = 137 + yOffset;
+  thickLine(126, mouthY, 138, mouthY - 7, pink, 6 + pulse);
+  thickLine(138, mouthY - 7, 150, mouthY + 5, pink, 6 + pulse);
+  thickLine(150, mouthY + 5, 162, mouthY - 7, pink, 6 + pulse);
+  thickLine(162, mouthY - 7, 174, mouthY + 5, pink, 6 + pulse);
+  thickLine(174, mouthY + 5, 190, mouthY - 2, pink, 6 + pulse);
+  // Pixel anger marks expand with the expression rather than shaking the screen.
+  gfx->fillRect(16 - pulse, 28 - pulse, 9 + pulse, 28 + pulse * 2, purple);
+  gfx->fillRect(25, 28 - pulse, 23 + pulse, 9 + pulse, purple);
+  gfx->fillRect(272 - pulse, 28 - pulse, 32 + pulse * 2, 9 + pulse, purple);
+  gfx->fillRect(295, 37, 9 + pulse, 25 + pulse, purple);
+}
+
 void drawFace() {
   const uint32_t now = millis();
   if (static_cast<int32_t>(now - nextBlinkAt) >= 0 && now >= blinkUntil) {
@@ -425,7 +453,7 @@ void drawFace() {
                         activeState == "browsing_fast" || activeState == "cat" ||
                         activeState == "helper" || activeState == "showoff" ||
                         activeState == "nervous" || activeState == "crying" ||
-                        activeState == "sleep" ||
+                        activeState == "sleep" || activeState == "rage" ||
                         blinkNow != lastBlink || winkNow != lastWink;
   if (animated && millis() - lastDrawAt < 90) return;
   int bobStrength = quietMotion ? 1 : 2 + static_cast<int>(volumeLevel * 2.0f);
@@ -492,8 +520,7 @@ void drawFace() {
   } else if (activeState == "crying") {
     drawCryingFace(yOffset);
   } else if (activeState == "rage") {
-    drawAssetFace(activeState, yOffset,
-                  (activeState == "crying" || activeState == "rage") ? pink : cyan);
+    drawRageFace(yOffset);
   } else {
     if (activeState == "idle" && (blinkNow || winkNow)) {
       if (blinkNow) {
