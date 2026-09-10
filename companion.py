@@ -587,16 +587,18 @@ def detection_loop(config: dict, stop: threading.Event) -> None:
                     if cameo == "weather" and RUNTIME.temperature is None:
                         cameo = "helper"
                     RUNTIME.idle_cameo_index += 1
-                    RUNTIME.manual_state = cameo
                     duration = float(config.get("ambient_card_duration_seconds", 6)) if cameo in {"time", "weather"} else cameo_duration
-                    RUNTIME.manual_until = now + duration
+                    RUNTIME.director_state = cameo
+                    RUNTIME.director_until = now + duration
+                    RUNTIME.director_reason = f"shy-curious idle cameo: {cameo}"
+                    RUNTIME.director_priority = 25
                     RUNTIME.director_cooldowns[cameo] = now + float(director_config.get("cameo_repeat_cooldown_seconds", 180))
                     RUNTIME.next_idle_cameo = now + random.uniform(cameo_min, cameo_max)
                     state, reason, source, priority = (
                         cameo,
                         f"shy-curious idle cameo: {cameo}",
-                        "manual",
-                        REACTION_PRIORITY["manual"],
+                        "director",
+                        25,
                     )
         else:
             with RUNTIME.lock:
