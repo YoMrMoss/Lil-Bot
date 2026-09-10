@@ -78,7 +78,9 @@ class HardwareProtocolTests(unittest.TestCase):
         companion.RUNTIME.music_playing = True
         frame = companion.RUNTIME.wire_frame()
         parts = frame.strip().split("|")
-        self.assertEqual(parts[:10], ["LILBOT", "1", "42", "browsing_fast", "75", "0", "1", "100", "1", "0"])
+        expected_brightness = str(companion.current_display_profile(companion.APP_CONFIG)["brightness"])
+        self.assertEqual(parts[:7], ["LILBOT", "1", "42", "browsing_fast", "75", "0", "1"])
+        self.assertEqual(parts[7:10], [expected_brightness, "1", "0"])
         self.assertEqual(parts[11], "--")
 
 

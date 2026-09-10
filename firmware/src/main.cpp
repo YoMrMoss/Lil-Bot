@@ -198,19 +198,27 @@ void drawRaceVisor(int yOffset, float progress) {
 }
 
 void drawHelperFace(int yOffset) {
-  pixelDisc(83, 82 + yOffset, 19, cyan);
-  pixelDisc(237, 82 + yOffset, 19, cyan);
+  pixelDisc(88, 82 + yOffset, 20, cyan);
+  pixelDisc(232, 82 + yOffset, 20, cyan);
+  // Absence-of-light pupils lean inward with a curious, eager focus.
+  gfx->fillRect(92, 76 + yOffset, 9, 14, BLACK);
+  gfx->fillRect(219, 76 + yOffset, 9, 14, BLACK);
   drawSmile(160, 122 + yOffset, 42, pink);
-  // A chunky sparkle says “ready to help” without fragile line art.
-  gfx->fillRect(151, 30 + yOffset, 18, 7, purple);
-  gfx->fillRect(156, 25 + yOffset, 8, 18, purple);
-  gfx->fillRect(43, 112 + yOffset, 22, 9, pink);
-  gfx->fillRect(57, 103 + yOffset, 9, 27, pink);
-  gfx->fillRect(65, 103 + yOffset, 17, 9, cyan);
+  // Helper B: the approval check draws itself, then emits two pixel sparks.
+  const uint32_t age = millis() - stateChangedAt;
+  if (age > 120) gfx->fillRect(139, 35 + yOffset, 9, 16, pink);
+  if (age > 260) thickLine(144, 48 + yOffset, 157, 59 + yOffset, pink, 8);
+  if (age > 400) thickLine(157, 59 + yOffset, 184, 29 + yOffset, pink, 8);
+  if (age > 560 && ((age / 260) % 2 == 0)) {
+    gfx->fillRect(124, 31 + yOffset, 8, 8, purple);
+    gfx->fillRect(190, 24 + yOffset, 8, 8, purple);
+  }
+  gfx->fillRect(48, 111 + yOffset, 22, 7, pink);
+  gfx->fillRect(250, 111 + yOffset, 22, 7, pink);
 }
 
 void drawShowoffFace(int yOffset) {
-  // Solid shades, bright bridge, and a confident pixel grin.
+  // Solid shades, lens glints, and a confident asymmetric grin.
   gfx->fillRect(43, 59 + yOffset, 76, 16, cyan);
   gfx->fillRect(51, 75 + yOffset, 60, 28, purpleDark);
   gfx->fillRect(201, 59 + yOffset, 76, 16, cyan);
@@ -218,9 +226,79 @@ void drawShowoffFace(int yOffset) {
   gfx->fillRect(119, 67 + yOffset, 82, 9, pink);
   gfx->fillRect(59, 83 + yOffset, 20, 8, pink);
   gfx->fillRect(241, 83 + yOffset, 20, 8, pink);
-  drawSmile(160, 124 + yOffset, 48, pink);
+  gfx->fillRect(59, 78 + yOffset, 9, 9, cyan);
+  gfx->fillRect(241, 78 + yOffset, 9, 9, cyan);
+  gfx->fillRect(135, 122 + yOffset, 36, 8, pink);
+  gfx->fillRect(171, 114 + yOffset, 17, 8, pink);
   gfx->fillRect(22, 40 + yOffset, 26, 7, purple);
   gfx->fillRect(31, 31 + yOffset, 7, 25, purple);
+}
+
+void drawCatFace(int yOffset) {
+  // Cat ears are stepped into the same wide-set face instead of using a font glyph.
+  gfx->fillRect(40, 43 + yOffset, 10, 30, purple);
+  gfx->fillRect(50, 51 + yOffset, 10, 22, cyan);
+  gfx->fillRect(60, 59 + yOffset, 14, 14, cyan);
+  gfx->fillRect(270, 43 + yOffset, 10, 30, purple);
+  gfx->fillRect(260, 51 + yOffset, 10, 22, cyan);
+  gfx->fillRect(246, 59 + yOffset, 14, 14, cyan);
+  pixelDisc(92, 83 + yOffset, 16, cyan);
+  pixelDisc(228, 83 + yOffset, 16, cyan);
+  gfx->fillRect(154, 105 + yOffset, 12, 8, pink);
+  thickLine(160, 113 + yOffset, 147, 124 + yOffset, pink, 5);
+  thickLine(160, 113 + yOffset, 173, 124 + yOffset, pink, 5);
+  gfx->fillRect(28, 105 + yOffset, 43, 5, purple);
+  gfx->fillRect(249, 105 + yOffset, 43, 5, purple);
+  gfx->fillRect(34, 116 + yOffset, 37, 5, purple);
+  gfx->fillRect(249, 116 + yOffset, 37, 5, purple);
+}
+
+void drawNervousFace(int yOffset, int xOffset) {
+  // Nervous B: inward-looking square eyes and a whole-face one-pixel tremble.
+  gfx->fillRect(57 + xOffset, 57 + yOffset, 55, 48, cyan);
+  gfx->fillRect(208 + xOffset, 57 + yOffset, 55, 48, cyan);
+  gfx->fillRect(92 + xOffset, 70 + yOffset, 14, 25, BLACK);
+  gfx->fillRect(214 + xOffset, 70 + yOffset, 14, 25, BLACK);
+  gfx->fillRect(50 + xOffset, 111 + yOffset, 24, 7, pink);
+  gfx->fillRect(246 + xOffset, 111 + yOffset, 24, 7, pink);
+  const int x[] = {132, 141, 150, 159, 168, 177};
+  for (int i = 0; i < 5; ++i) thickLine(x[i] + xOffset, 127 + (i % 2 ? -5 : 5) + yOffset,
+                                        x[i + 1] + xOffset, 127 + (i % 2 ? 5 : -5) + yOffset, pink, 4);
+  const int drop = static_cast<int>((millis() / 170) % 13);
+  gfx->fillRect(284 + xOffset, 48 + drop + yOffset, 8, 15, purple);
+  gfx->fillRect(280 + xOffset, 61 + drop + yOffset, 16, 8, purple);
+}
+
+void drawCryingFace(int yOffset) {
+  // Heavy pixel lids keep the emotion readable; cyan tears animate as light blocks.
+  gfx->fillRect(48, 67 + yOffset, 72, 9, purple);
+  gfx->fillRect(200, 67 + yOffset, 72, 9, purple);
+  gfx->fillRect(58, 76 + yOffset, 52, 8, cyan);
+  gfx->fillRect(210, 76 + yOffset, 52, 8, cyan);
+  const int tear = (millis() / 180) % 16;
+  gfx->fillRect(78, 91 + tear + yOffset, 12, 25, cyan);
+  gfx->fillRect(230, 96 + ((tear + 8) % 16) + yOffset, 12, 25, cyan);
+  gfx->fillRect(139, 133 + yOffset, 8, 8, pink);
+  gfx->fillRect(147, 125 + yOffset, 26, 8, pink);
+  gfx->fillRect(173, 133 + yOffset, 8, 8, pink);
+}
+
+void drawSleepFace(int yOffset) {
+  // Sleep B: relaxed lids breathe slowly beneath a pulsing pixel moon.
+  gfx->fillRect(49, 83 + yOffset, 64, 8, purple);
+  gfx->fillRect(207, 83 + yOffset, 64, 8, purple);
+  gfx->fillRect(57, 91 + yOffset, 48, 7, cyan);
+  gfx->fillRect(215, 91 + yOffset, 48, 7, cyan);
+  gfx->fillRect(153, 124 + yOffset, 14, 10, pink);
+  const bool moonPulse = ((millis() / 700) % 2) == 0;
+  pixelDisc(224, 35, moonPulse ? 18 : 16, purple);
+  pixelDisc(232, 29, moonPulse ? 14 : 12, BLACK);
+  gfx->fillRect(194, 28, 7, 18, cyan);
+  gfx->fillRect(188, 34, 19, 7, cyan);
+  const int snore = static_cast<int>((millis() / 760) % 4);
+  if (snore >= 1) gfx->fillRect(272, 70 - snore * 4, 13, 5, pink);
+  if (snore >= 2) gfx->fillRect(280, 75 - snore * 4, 5, 8, pink);
+  if (snore >= 3) gfx->fillRect(272, 83 - snore * 4, 13, 5, pink);
 }
 
 void drawNotificationIcon(int yOffset) {
@@ -344,13 +422,20 @@ void drawFace() {
   const bool quietMotion = brightness <= 20;
   const bool animated = musicBob || activeState == "music" ||
                         activeState == "loading" || activeState == "reconnect" ||
-                        activeState == "browsing_fast" ||
+                        activeState == "browsing_fast" || activeState == "cat" ||
+                        activeState == "helper" || activeState == "showoff" ||
+                        activeState == "nervous" || activeState == "crying" ||
+                        activeState == "sleep" ||
                         blinkNow != lastBlink || winkNow != lastWink;
   if (animated && millis() - lastDrawAt < 90) return;
   int bobStrength = quietMotion ? 1 : 2 + static_cast<int>(volumeLevel * 2.0f);
   int bob = musicBob ? -static_cast<int>((millis() / 125) % 3) * bobStrength : 0;
   int drift = pixelShift ? static_cast<int>((millis() / 25000) % 3) - 1 : 0;
   int yOffset = bob + drift;
+  if (activeState == "sleep") yOffset += static_cast<int>((now / 650) % 3);
+  if (activeState == "nervous") yOffset += static_cast<int>((now / 140) % 3) - 1;
+  const int nervousShakeX = activeState == "nervous"
+      ? static_cast<int>((now / 85) % 3) - 1 : 0;
   int gazeX = (activeState == "idle" && !quietMotion)
       ? (static_cast<int>((millis() / 4200) % 3) - 1) * 4 : 0;
   if (!animated && activeState == lastRenderedState && yOffset == lastRenderedOffset && gazeX == lastRenderedGaze) return;
@@ -371,8 +456,7 @@ void drawFace() {
     drawRaceVisor(yOffset, progress);
     drawSmile(MOUTH_X, MOUTH_Y + yOffset, MOUTH_SIZE, pink);
   } else if (activeState == "sleep") {
-    drawClosedEyes(yOffset);
-    thickLine(MOUTH_X - 17, MOUTH_Y + yOffset, MOUTH_X + 17, MOUTH_Y + yOffset, pink, 4);
+    drawSleepFace(yOffset);
   } else if (activeState == "music") {
     drawClosedEyes(yOffset, true);
     drawSmile(MOUTH_X, MOUTH_Y + yOffset, MOUTH_SIZE, pink);
@@ -401,8 +485,13 @@ void drawFace() {
     drawHelperFace(yOffset);
   } else if (activeState == "showoff") {
     drawShowoffFace(yOffset);
-  } else if (activeState == "cat" || activeState == "crying" ||
-             activeState == "nervous" || activeState == "rage") {
+  } else if (activeState == "cat") {
+    drawCatFace(yOffset);
+  } else if (activeState == "nervous") {
+    drawNervousFace(yOffset, nervousShakeX);
+  } else if (activeState == "crying") {
+    drawCryingFace(yOffset);
+  } else if (activeState == "rage") {
     drawAssetFace(activeState, yOffset,
                   (activeState == "crying" || activeState == "rage") ? pink : cyan);
   } else {
