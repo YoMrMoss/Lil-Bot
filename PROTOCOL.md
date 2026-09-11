@@ -23,7 +23,8 @@ compact JSON as newline-delimited messages over USB CDC at 115200 baud.
 
 The board answers with `READY:LILBOT/1`, repeats `HELLO:LILBOT/1` as its link
 heartbeat, acknowledges accepted frames with `ACK:<sequence>`, and reports
-screen interaction as `TOUCH:tap`, `TOUCH:double`, or `TOUCH:hold`. The Windows
+screen interaction as `TOUCH:tap`, `TOUCH:double`, `TOUCH:hold`,
+`TOUCH:swipe_left`, or `TOUCH:swipe_right`. The Windows
 bridge auto-discovers Espressif USB serial ports and reconnects without restart.
 
 The USB firmware transport will
@@ -40,7 +41,11 @@ applied independently without replacing the base emotion.
 
 ## Touch input
 
-Firmware will send `tap`, `double`, or `hold` to the companion. Until serial is
+Firmware sends tap, double-tap, hold, and horizontal swipes to the companion.
+The compact USB frame also includes a final gaze field (`-1`, `0`, or `1`). It
+represents only mouse direction and never transmits cursor coordinates.
+
+Until serial is
 implemented, the simulator sends the equivalent JSON to `POST /api/touch`:
 
 ```json
@@ -48,7 +53,9 @@ implemented, the simulator sends the equivalent JSON to `POST /api/touch`:
 ```
 
 Tap clears notifications and triggers the table flip. Double tap shows the
-helper face. Hold temporarily shows sleep. Unknown gestures receive HTTP 400.
+helper face. Hold temporarily shows sleep. Left/right swipes cycle through the
+curated face collection without clearing notifications. Unknown gestures
+receive HTTP 400.
 
 Automatic firmware flashing remains disabled until board identity, recovery, and power-
 loss behavior are verified on the physical T-Display-S3.

@@ -28,7 +28,7 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "companion_config.json"
-BUILD_VERSION = "2.1.0"
+BUILD_VERSION = "2.2.0"
 PROTOCOL_VERSION = 1
 VALID_STATES = {"idle", "typing", "browsing", "browsing_fast", "music", "gaming", "cat", "helper", "showoff", "crying", "nervous", "rage", "notification", "loading", "error", "sleep", "volume", "startup", "reconnect", "time", "weather"}
 REACTION_PRIORITY = {"idle": 0, "application": 30, "browsing": 40, "typing": 50, "gaming": 60, "director": 65, "sleep": 70, "volume": 80, "after": 90, "manual": 100}
@@ -109,6 +109,10 @@ class Runtime:
     idle_seconds: float = 0.0
     last_key: float = 0.0
     last_mouse: float = 0.0
+    last_mouse_x: int | None = None
+    last_mouse_y: int | None = None
+    gaze_direction: int = 0
+    gaze_until: float = 0.0
     last_scroll: float = 0.0
     last_volume: float = 0.0
     volume_direction: str = "none"
@@ -131,6 +135,7 @@ class Runtime:
     unread_notifications: int = 0
     next_idle_cameo: float = 0.0
     idle_cameo_index: int = 0
+    touch_cycle_index: int = 0
     director_state: str | None = None
     director_until: float = 0.0
     director_reason: str = ""
@@ -183,6 +188,7 @@ class Runtime:
                     "brightness": profile["brightness"],
                     "pixel_shift": bool(APP_CONFIG.get("animation", {}).get("pixel_shift", True)),
                     "transition_ms": int(APP_CONFIG.get("animation", {}).get("transition_ms", 240)),
+                    "gaze_direction": self.gaze_direction if now < self.gaze_until else 0,
                 },
                 "activity": {
                     "key_age": round(max(0.0, now - self.last_key), 2) if self.last_key else None,
@@ -208,7 +214,7 @@ class Runtime:
         clock = time.strftime("%I:%M %p").lstrip("0")
         temperature = "--" if frame["ambient"]["temperature"] is None else str(round(float(frame["ambient"]["temperature"])))
         location = str(frame["ambient"]["location"] or "LOCAL").replace("|", "/")[:24]
-        return "LILBOT|1|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}\n".format(
+        return "LILBOT|1|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}\n".format(
             frame["sequence"],
             frame["state"],
             int(round(float(frame["volume_level"]) * 100)),
@@ -220,6 +226,7 @@ class Runtime:
             clock,
             temperature,
             location,
+            int(modifiers.get("gaze_direction", 0)),
         )
 
     def device_status(self, connected: bool, port: str = "", reason: str = "") -> None:
@@ -279,7 +286,13 @@ class Runtime:
         with self.lock:
             cleared = self.unread_notifications
             now = time.monotonic()
-            if gesture == "hold":
+            cycle = ("idle", "cat", "helper", "showoff", "gaming", "music", "nervous", "sleep")
+            if gesture in {"swipe_left", "swipe_right"}:
+                step = 1 if gesture == "swipe_left" else -1
+                self.touch_cycle_index = (self.touch_cycle_index + step) % len(cycle)
+                state, duration = cycle[self.touch_cycle_index], 4.0
+                reason = f"touchscreen {gesture.replace('_', ' ')}; cycled to {state}"
+            elif gesture == "hold":
                 state, duration, reason = "sleep", 3.0, "touchscreen hold; taking a shy little rest"
             elif gesture == "double":
                 state, duration, reason = "helper", 2.2, "touchscreen double tap; eager helper check-in"
@@ -442,8 +455,16 @@ def install_activity_listeners() -> None:
                 return
             RUNTIME.last_key = now
 
-        def mouse_event(*_args):
-            RUNTIME.last_mouse = time.monotonic()
+        def mouse_event(x, y, *_args):
+            now = time.monotonic()
+            with RUNTIME.lock:
+                if RUNTIME.last_mouse_x is not None:
+                    delta = x - RUNTIME.last_mouse_x
+                    if abs(delta) >= 2:
+                        RUNTIME.gaze_direction = 1 if delta > 0 else -1
+                        RUNTIME.gaze_until = now + 1.4
+                RUNTIME.last_mouse_x, RUNTIME.last_mouse_y = int(x), int(y)
+                RUNTIME.last_mouse = now
 
         def scroll_event(*_args):
             now = time.monotonic()
@@ -720,7 +741,7 @@ def serial_bridge_loop(config: dict, stop: threading.Event) -> None:
                         RUNTIME.device_last_seen = time.time()
                     if line.startswith("TOUCH:"):
                         gesture = line.partition(":")[2].lower()
-                        if gesture in {"tap", "double", "hold"}:
+                        if gesture in {"tap", "double", "hold", "swipe_left", "swipe_right"}:
                             RUNTIME.touch_reaction(gesture)
                 if not handshake and now >= handshake_deadline:
                     raise serial.SerialTimeoutException("firmware handshake timeout")
@@ -790,8 +811,8 @@ class Handler(SimpleHTTPRequestHandler):
                 length = min(int(self.headers.get("Content-Length", "0")), 512)
                 payload = json.loads(self.rfile.read(length) or b"{}")
                 gesture = str(payload.get("gesture", "tap")).lower()
-                if gesture not in {"tap", "double", "hold"}:
-                    raise ValueError("gesture must be tap, double, or hold")
+                if gesture not in {"tap", "double", "hold", "swipe_left", "swipe_right"}:
+                    raise ValueError("gesture must be tap, double, hold, swipe_left, or swipe_right")
                 RUNTIME.touch_reaction(gesture)
                 self.send_json(RUNTIME.snapshot())
             except (ValueError, json.JSONDecodeError) as exc:

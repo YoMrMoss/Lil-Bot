@@ -71,6 +71,15 @@ class TouchTests(unittest.TestCase):
         self.assertEqual(snapshot["state"], "sleep")
         self.assertEqual(snapshot["unread_notifications"], 2)
 
+    def test_swipes_cycle_faces_without_clearing_notifications(self):
+        companion.RUNTIME.unread_notifications = 2
+        companion.RUNTIME.touch_reaction("swipe_left")
+        self.assertEqual(companion.RUNTIME.snapshot()["state"], "cat")
+        companion.RUNTIME.touch_reaction("swipe_right")
+        snapshot = companion.RUNTIME.snapshot()
+        self.assertEqual(snapshot["state"], "idle")
+        self.assertEqual(snapshot["unread_notifications"], 2)
+
 
 class EmotionDirectorTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -100,6 +109,11 @@ class HardwareProtocolTests(unittest.TestCase):
         self.assertEqual(parts[:7], ["LILBOT", "1", "42", "browsing_fast", "75", "0", "1"])
         self.assertEqual(parts[7:10], [expected_brightness, "1", "0"])
         self.assertEqual(parts[11], "--")
+
+    def test_wire_frame_contains_privacy_safe_gaze_direction(self):
+        companion.RUNTIME.gaze_direction = -1
+        companion.RUNTIME.gaze_until = 10**12
+        self.assertEqual(companion.RUNTIME.wire_frame().strip().split("|")[13], "-1")
 
 
 if __name__ == "__main__":

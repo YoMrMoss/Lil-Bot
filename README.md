@@ -69,7 +69,7 @@ as though it were the ESP32 display.
 5. Use the state buttons to simulate events that are not detected yet.
 6. Close the command window or press `Ctrl+C` to stop it.
 
-The current simulator is labeled **BUILD 2.1.0** at the top. When updating, close
+The current simulator is labeled **BUILD 2.2.0** at the top. When updating, close
 the previous Lil Bot command window and extract the new ZIP into a new folder
 instead of merging it into an older copy. If the screen still has side grips or
 a USB tab, an older preview is running.
@@ -158,6 +158,14 @@ Gaming keeps `[+..••]` as its focused anchor but briefly rotates through fiv
 restrained micro-reactions: a one-eye targeting sight, a happy success sparkle,
 a low-health concern, a curious loot glance, and a half-lidded cooldown. These
 moments occupy short windows and always return to the familiar gaming face.
+
+## v2.2 curiosity and touch
+
+Lil Bot now follows the direction of recent mouse movement with a restrained
+left/center/right gaze and lingers briefly when the mouse stops. Exact cursor
+coordinates never leave the PC companion. The touchscreen vocabulary includes
+tap for rage plus notification clear, double-tap for helper, hold for sleep,
+and horizontal swipes for moving through a curated face carousel.
 
 Public releases keep weather disabled and use blank coordinates so personal
 location data is never committed to GitHub. Set `enabled` to `true` and add your

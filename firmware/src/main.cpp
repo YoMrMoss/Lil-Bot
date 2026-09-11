@@ -45,6 +45,10 @@ bool lastBlink = false;
 bool lastWink = false;
 uint32_t touchStartedAt = 0;
 uint32_t lastTapAt = 0;
+int touchStartX = 0;
+int touchStartY = 0;
+int touchLastX = 0;
+int touchLastY = 0;
 float volumeLevel = 0.5f;
 bool volumeMuted = false;
 bool musicBob = false;
@@ -55,6 +59,7 @@ String temperatureText = "--";
 String locationText = "LOCAL";
 bool linked = false;
 bool touchDown = false;
+int8_t gazeHint = 0;
 uint8_t brightness = 80;
 uint16_t cyan;
 uint16_t pink;
@@ -538,8 +543,11 @@ void drawFace() {
   if (activeState == "nervous") yOffset += static_cast<int>((now / 140) % 3) - 1;
   const int nervousShakeX = activeState == "nervous"
       ? static_cast<int>((now / 85) % 3) - 1 : 0;
-  int gazeX = ((activeState == "idle" || activeState == "browsing") && !quietMotion)
-      ? (static_cast<int>((millis() / 4200) % 3) - 1) * 4 : 0;
+  int gazeX = 0;
+  if ((activeState == "idle" || activeState == "browsing") && !quietMotion) {
+    gazeX = gazeHint ? gazeHint * 6
+                     : (static_cast<int>((millis() / 4200) % 3) - 1) * 4;
+  }
   if (!animated && activeState == lastRenderedState && yOffset == lastRenderedOffset && gazeX == lastRenderedGaze) return;
   lastDrawAt = millis();
   lastRenderedState = activeState;
@@ -664,9 +672,9 @@ void acceptFrame(const String &line) {
 
 void acceptWireFrame(const String &line) {
   // LILBOT|protocol|sequence|state|volume%|muted|musicBob|brightness|pixelShift|unread
-  String fields[13];
+  String fields[14];
   int start = 0;
-  for (int i = 0; i < 13; ++i) {
+  for (int i = 0; i < 14; ++i) {
     int separator = line.indexOf('|', start);
     if (separator < 0) separator = line.length();
     fields[i] = line.substring(start, separator);
@@ -685,10 +693,12 @@ void acceptWireFrame(const String &line) {
   const String incomingClock = fields[10];
   const String incomingTemperature = fields[11];
   const String incomingLocation = fields[12];
+  const int8_t incomingGaze = constrain(fields[13].toInt(), -1, 1);
   const bool visualChanged = incomingState != activeState ||
       incomingMusicBob != musicBob || incomingPixelShift != pixelShift ||
       incomingUnread != unreadNotifications || incomingClock != clockText ||
       incomingTemperature != temperatureText || incomingLocation != locationText ||
+      incomingGaze != gazeHint ||
       (incomingState == "volume" &&
        (incomingMuted != volumeMuted || abs(incomingVolume - volumeLevel) >= 0.01f));
   sequence = static_cast<uint32_t>(fields[2].toInt());
@@ -703,6 +713,7 @@ void acceptWireFrame(const String &line) {
   clockText = incomingClock;
   temperatureText = incomingTemperature;
   locationText = incomingLocation;
+  gazeHint = incomingGaze;
   linked = true;
   lastFrameAt = millis();
   // Heartbeats keep the link alive without clearing a static LCD frame.
@@ -728,25 +739,49 @@ void pollSerial() {
   }
 }
 
-bool touchPressed() {
+bool readTouchPoint(int &screenX, int &screenY) {
   Wire.beginTransmission(TOUCH_ADDRESS);
   Wire.write(0x02);
   if (Wire.endTransmission(false) != 0) return false;
-  if (Wire.requestFrom(TOUCH_ADDRESS, static_cast<uint8_t>(1)) != 1) return false;
-  return (Wire.read() & 0x0F) > 0;
+  if (Wire.requestFrom(TOUCH_ADDRESS, static_cast<uint8_t>(5)) != 5) return false;
+  const uint8_t fingers = Wire.read() & 0x0F;
+  const uint8_t xHigh = Wire.read();
+  const uint8_t xLow = Wire.read();
+  const uint8_t yHigh = Wire.read();
+  const uint8_t yLow = Wire.read();
+  if (!fingers) return false;
+  const int rawX = ((xHigh & 0x0F) << 8) | xLow;
+  const int rawY = ((yHigh & 0x0F) << 8) | yLow;
+  // The controller remains portrait while the display is rotated landscape.
+  screenX = constrain(319 - rawY, 0, 319);
+  screenY = constrain(rawX, 0, 169);
+  return true;
 }
 
 void pollTouch() {
   static uint32_t lastPoll = 0;
   if (millis() - lastPoll < 25) return;
   lastPoll = millis();
-  const bool pressed = touchPressed();
+  int touchX = touchLastX;
+  int touchY = touchLastY;
+  const bool pressed = readTouchPoint(touchX, touchY);
   if (pressed && !touchDown) {
     touchDown = true;
     touchStartedAt = millis();
+    touchStartX = touchLastX = touchX;
+    touchStartY = touchLastY = touchY;
+  } else if (pressed && touchDown) {
+    touchLastX = touchX;
+    touchLastY = touchY;
   } else if (!pressed && touchDown) {
     touchDown = false;
-    if (millis() - touchStartedAt >= 650) Serial.println("TOUCH:hold");
+    const int deltaX = touchLastX - touchStartX;
+    const int deltaY = touchLastY - touchStartY;
+    const uint32_t duration = millis() - touchStartedAt;
+    if (abs(deltaX) >= 55 && abs(deltaX) > abs(deltaY) && duration < 1100) {
+      Serial.println(deltaX < 0 ? "TOUCH:swipe_left" : "TOUCH:swipe_right");
+      lastTapAt = 0;
+    } else if (duration >= 650) Serial.println("TOUCH:hold");
     else if (millis() - lastTapAt <= 320) {
       lastTapAt = 0;
       Serial.println("TOUCH:double");
