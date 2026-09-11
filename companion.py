@@ -28,7 +28,7 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "companion_config.json"
-BUILD_VERSION = "2.0.0"
+BUILD_VERSION = "2.1.0"
 PROTOCOL_VERSION = 1
 VALID_STATES = {"idle", "typing", "browsing", "browsing_fast", "music", "gaming", "cat", "helper", "showoff", "crying", "nervous", "rage", "notification", "loading", "error", "sleep", "volume", "startup", "reconnect", "time", "weather"}
 REACTION_PRIORITY = {"idle": 0, "application": 30, "browsing": 40, "typing": 50, "gaming": 60, "director": 65, "sleep": 70, "volume": 80, "after": 90, "manual": 100}

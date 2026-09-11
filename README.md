@@ -69,7 +69,7 @@ as though it were the ESP32 display.
 5. Use the state buttons to simulate events that are not detected yet.
 6. Close the command window or press `Ctrl+C` to stop it.
 
-The current simulator is labeled **BUILD 2.0.0** at the top. When updating, close
+The current simulator is labeled **BUILD 2.1.0** at the top. When updating, close
 the previous Lil Bot command window and extract the new ZIP into a new folder
 instead of merging it into an older copy. If the screen still has side grips or
 a USB tab, an older preview is running.
@@ -146,6 +146,18 @@ black absence-of-light pupils, hot-pink cheeks and zigzag mouth, and purple
 corner anger marks. Its expression pulses by only a few pixels instead of
 shaking the whole frame. The diagnostic log records both activations and faces
 suppressed by cooldowns, making unexpected state choices easier to explain.
+
+## v2.1 personality motion
+
+The approved Rage B face preserves Lil Bot's wide-set eyes and adds a pulsing
+comic temple vessel. Fast browsing uses the Speed D helmet with the same eyes
+visible behind its visor. Typing, browsing, idle, and gaming now share quiet
+breathing and blinking so active faces do not become frozen cards.
+
+Gaming keeps `[+..••]` as its focused anchor but briefly rotates through five
+restrained micro-reactions: a one-eye targeting sight, a happy success sparkle,
+a low-health concern, a curious loot glance, and a half-lidded cooldown. These
+moments occupy short windows and always return to the familiar gaming face.
 
 Public releases keep weather disabled and use blank coordinates so personal
 location data is never committed to GitHub. Set `enabled` to `true` and add your

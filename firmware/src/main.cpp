@@ -187,11 +187,11 @@ void drawRaceVisor(int yOffset, float progress) {
   gfx->fillRect(282, 56 + yOffset + slide, 8, 48, cyan);
   gfx->fillRect(38, 48 + yOffset + slide, 244, 8, cyan);
   gfx->fillRect(38, 104 + yOffset + slide, 244, 8, pink);
-  // Block chevrons remain readable behind the glass.
-  thickLine(67, 76 + yOffset + slide, 93, 67 + yOffset + slide, cyan, 8);
-  thickLine(93, 67 + yOffset + slide, 78, 91 + yOffset + slide, cyan, 8);
-  thickLine(253, 76 + yOffset + slide, 227, 67 + yOffset + slide, pink, 8);
-  thickLine(227, 67 + yOffset + slide, 242, 91 + yOffset + slide, pink, 8);
+  // Speed D keeps Lil Bot's familiar wide, chunky eyes inside the visor.
+  pixelDisc(82, 80 + yOffset + slide, 22, cyan);
+  pixelDisc(238, 80 + yOffset + slide, 22, cyan);
+  gfx->fillRect(82, 72 + yOffset + slide, 10, 18, BLACK);
+  gfx->fillRect(228, 72 + yOffset + slide, 10, 18, BLACK);
   const int streak = (millis() / 55) % 18;
   gfx->fillRect(2, 58 + streak, 21, 5, cyan);
   gfx->fillRect(297, 90 - streak, 21, 5, pink);
@@ -313,6 +313,9 @@ void drawNotificationIcon(int yOffset) {
   gfx->fillRect(278, 29 + yOffset, 8, 40, purple);
 }
 
+void drawBarEye(int x, int yOffset);
+void drawClosedEyes(int yOffset, bool happy);
+
 void drawGaming(int yOffset) {
   gfx->setTextSize(5);
   gfx->setTextColor(cyan);
@@ -322,9 +325,74 @@ void drawGaming(int yOffset) {
   gfx->print("oo]");
 }
 
-void drawVerticalEyes(int yOffset) {
-  gfx->fillRoundRect(LEFT_EYE_X - 8, EYE_Y - 24 + yOffset, 16, 48, 5, cyan);
-  gfx->fillRoundRect(RIGHT_EYE_X - 8, EYE_Y - 24 + yOffset, 16, 48, 5, cyan);
+void drawGamingLife(int yOffset, bool blinkNow) {
+  const uint32_t age = millis() - stateChangedAt;
+  const uint32_t scene = age % 24000;
+  int reaction = 0;
+  if (scene >= 4800 && scene < 5900) reaction = 1;       // target sight
+  else if (scene >= 9800 && scene < 10900) reaction = 2; // victory
+  else if (scene >= 14400 && scene < 15500) reaction = 3;// low health
+  else if (scene >= 18800 && scene < 20000) reaction = 4;// discovery
+  else if (scene >= 22400 && scene < 23500) reaction = 5;// cooldown
+  if (!reaction) {
+    if (!drawAssetFace("gaming", yOffset, cyan)) drawGaming(yOffset);
+    return;
+  }
+  if (blinkNow) {
+    drawBarEye(LEFT_EYE_X, yOffset);
+    drawBarEye(RIGHT_EYE_X, yOffset);
+    drawSmile(MOUTH_X, MOUTH_Y + yOffset, MOUTH_SIZE, pink);
+    return;
+  }
+  if (reaction == 2) {
+    drawClosedEyes(yOffset, true);
+    drawSmile(MOUTH_X, MOUTH_Y + yOffset, MOUTH_SIZE, pink);
+    gfx->fillRect(28, 34 + yOffset, 9, 25, purple);
+    gfx->fillRect(20, 42 + yOffset, 25, 9, purple);
+    gfx->fillRect(283, 34 + yOffset, 9, 25, purple);
+    gfx->fillRect(275, 42 + yOffset, 25, 9, purple);
+    return;
+  }
+  if (reaction == 5) {
+    gfx->fillRect(40, 75 + yOffset, 56, 10, cyan);
+    gfx->fillRect(224, 75 + yOffset, 56, 10, cyan);
+    gfx->fillRect(144, 130 + yOffset, 32, 7, pink);
+    gfx->drawCircle(160, 28, 14, purple);
+    gfx->fillRect(160, 12, 5, 12, cyan);
+    return;
+  }
+  pixelDisc(LEFT_EYE_X, EYE_Y + yOffset, reaction == 4 ? 27 : 24, cyan);
+  pixelDisc(RIGHT_EYE_X, EYE_Y + yOffset, reaction == 4 ? 27 : 24, cyan);
+  const int look = reaction == 1 ? 7 : 0;
+  gfx->fillRect(LEFT_EYE_X - 5 + look, EYE_Y - 9 + yOffset, 10, 18, BLACK);
+  gfx->fillRect(RIGHT_EYE_X - 5 + look, EYE_Y - 9 + yOffset, 10, 18, BLACK);
+  if (reaction == 1) {
+    // A chunky sight briefly locks over the right eye.
+    gfx->drawCircle(RIGHT_EYE_X, EYE_Y + yOffset, 34, purple);
+    gfx->drawCircle(RIGHT_EYE_X, EYE_Y + yOffset, 32, cyan);
+    gfx->fillRect(RIGHT_EYE_X - 3, EYE_Y - 43 + yOffset, 6, 15, pink);
+    gfx->fillRect(RIGHT_EYE_X - 3, EYE_Y + 28 + yOffset, 6, 15, pink);
+    gfx->fillRect(RIGHT_EYE_X - 43, EYE_Y - 3 + yOffset, 15, 6, pink);
+    gfx->fillRect(RIGHT_EYE_X + 28, EYE_Y - 3 + yOffset, 15, 6, pink);
+  } else if (reaction == 3) {
+    gfx->fillRect(151, 20, 18, 18, pink);
+    gfx->fillRect(145, 14, 12, 12, pink);
+    gfx->fillRect(163, 14, 12, 12, pink);
+  } else if (reaction == 4) {
+    gfx->fillRect(155, 19, 10, 30, purple);
+    gfx->fillRect(145, 29, 30, 10, purple);
+    gfx->fillRect(151, 25, 18, 18, cyan);
+  }
+  if (reaction == 3) {
+    thickLine(144, 134 + yOffset, 160, 126 + yOffset, pink, 5);
+    thickLine(160, 126 + yOffset, 176, 134 + yOffset, pink, 5);
+  } else drawSmile(MOUTH_X, MOUTH_Y + yOffset, MOUTH_SIZE, pink);
+}
+
+void drawVerticalEyes(int yOffset, int compression = 0) {
+  const int height = 48 - compression;
+  gfx->fillRoundRect(LEFT_EYE_X - 8, EYE_Y - height / 2 + yOffset, 16, height, 5, cyan);
+  gfx->fillRoundRect(RIGHT_EYE_X - 8, EYE_Y - height / 2 + yOffset, 16, height, 5, cyan);
 }
 
 void drawBarEye(int x, int yOffset) {
@@ -408,18 +476,15 @@ void drawMusicNotes() {
 }
 
 void drawRageFace(int yOffset) {
-  // Rage A: sharp cyan eyes, absence-of-light pupils, and a restrained pulse.
+  // Rage B: familiar wide eyes plus a playful pulsing comic anger vessel.
   const int phase = (millis() / 180) % 4;
   const int pulse = phase < 2 ? phase : 4 - phase;
-  const int eyeGrow = pulse * 2;
-  gfx->fillTriangle(32 - eyeGrow, 57 + yOffset - eyeGrow,
-                    124 + eyeGrow, 75 + yOffset,
-                    50 - eyeGrow, 111 + yOffset + eyeGrow, cyan);
-  gfx->fillTriangle(288 + eyeGrow, 57 + yOffset - eyeGrow,
-                    196 - eyeGrow, 75 + yOffset,
-                    270 + eyeGrow, 111 + yOffset + eyeGrow, cyan);
-  gfx->fillTriangle(68, 74 + yOffset, 119, 79 + yOffset, 83, 98 + yOffset, BLACK);
-  gfx->fillTriangle(252, 74 + yOffset, 201, 79 + yOffset, 237, 98 + yOffset, BLACK);
+  pixelDisc(LEFT_EYE_X, EYE_Y + yOffset, 24 + pulse, cyan);
+  pixelDisc(RIGHT_EYE_X, EYE_Y + yOffset, 24 + pulse, cyan);
+  gfx->fillRect(LEFT_EYE_X + 2, EYE_Y - 9 + yOffset, 11, 18, BLACK);
+  gfx->fillRect(RIGHT_EYE_X - 13, EYE_Y - 9 + yOffset, 11, 18, BLACK);
+  thickLine(35, 51 + yOffset, 105, 67 + yOffset, pink, 7 + pulse);
+  thickLine(285, 51 + yOffset, 215, 67 + yOffset, pink, 7 + pulse);
   gfx->fillRect(43 - pulse, 119 + yOffset, 35 + pulse * 2, 7 + pulse, pink);
   gfx->fillRect(242 - pulse, 119 + yOffset, 35 + pulse * 2, 7 + pulse, pink);
   const int mouthY = 137 + yOffset;
@@ -428,11 +493,10 @@ void drawRageFace(int yOffset) {
   thickLine(150, mouthY + 5, 162, mouthY - 7, pink, 6 + pulse);
   thickLine(162, mouthY - 7, 174, mouthY + 5, pink, 6 + pulse);
   thickLine(174, mouthY + 5, 190, mouthY - 2, pink, 6 + pulse);
-  // Pixel anger marks expand with the expression rather than shaking the screen.
-  gfx->fillRect(16 - pulse, 28 - pulse, 9 + pulse, 28 + pulse * 2, purple);
-  gfx->fillRect(25, 28 - pulse, 23 + pulse, 9 + pulse, purple);
-  gfx->fillRect(272 - pulse, 28 - pulse, 32 + pulse * 2, 9 + pulse, purple);
-  gfx->fillRect(295, 37, 9 + pulse, 25 + pulse, purple);
+  gfx->fillRect(276 - pulse, 18 - pulse, 10 + pulse, 24 + pulse * 2, purple);
+  gfx->fillRect(286, 26 - pulse, 22 + pulse, 10 + pulse, purple);
+  gfx->fillRect(262 - pulse, 8 - pulse, 10 + pulse, 22 + pulse, purple);
+  gfx->fillRect(270, 8 - pulse, 22 + pulse, 10 + pulse, purple);
 }
 
 void drawFace() {
@@ -445,7 +509,9 @@ void drawFace() {
     winkUntil = now + 520;
     nextWinkAt = now + random(11000, 22000);
   }
-  const bool blinkNow = activeState == "idle" && now < blinkUntil;
+  const bool blinkEligible = activeState == "idle" || activeState == "typing" ||
+                             activeState == "browsing" || activeState == "gaming";
+  const bool blinkNow = blinkEligible && now < blinkUntil;
   const bool winkNow = activeState == "idle" && !blinkNow && now < winkUntil;
   const bool quietMotion = brightness <= 20;
   const bool animated = musicBob || activeState == "music" ||
@@ -454,17 +520,25 @@ void drawFace() {
                         activeState == "helper" || activeState == "showoff" ||
                         activeState == "nervous" || activeState == "crying" ||
                         activeState == "sleep" || activeState == "rage" ||
+                        activeState == "typing" || activeState == "browsing" ||
+                        activeState == "gaming" || activeState == "idle" ||
                         blinkNow != lastBlink || winkNow != lastWink;
   if (animated && millis() - lastDrawAt < 90) return;
   int bobStrength = quietMotion ? 1 : 2 + static_cast<int>(volumeLevel * 2.0f);
   int bob = musicBob ? -static_cast<int>((millis() / 125) % 3) * bobStrength : 0;
+  const bool lifeMotion = activeState == "idle" || activeState == "typing" ||
+                          activeState == "browsing" || activeState == "gaming";
+  if (lifeMotion && !quietMotion) {
+    const int breathPhase = (now / 700) % 4;
+    bob += (breathPhase == 1 || breathPhase == 2) ? 1 : 0;
+  }
   int drift = pixelShift ? static_cast<int>((millis() / 25000) % 3) - 1 : 0;
   int yOffset = bob + drift;
   if (activeState == "sleep") yOffset += static_cast<int>((now / 650) % 3);
   if (activeState == "nervous") yOffset += static_cast<int>((now / 140) % 3) - 1;
   const int nervousShakeX = activeState == "nervous"
       ? static_cast<int>((now / 85) % 3) - 1 : 0;
-  int gazeX = (activeState == "idle" && !quietMotion)
+  int gazeX = ((activeState == "idle" || activeState == "browsing") && !quietMotion)
       ? (static_cast<int>((millis() / 4200) % 3) - 1) * 4 : 0;
   if (!animated && activeState == lastRenderedState && yOffset == lastRenderedOffset && gazeX == lastRenderedGaze) return;
   lastDrawAt = millis();
@@ -478,7 +552,7 @@ void drawFace() {
   if (activeState == "time" || activeState == "weather") {
     drawInformationCard(activeState == "weather");
   } else if (activeState == "gaming") {
-    if (!drawAssetFace("gaming", yOffset, cyan)) drawGaming(yOffset);
+    drawGamingLife(yOffset, blinkNow);
   } else if (activeState == "browsing_fast") {
     float progress = constrain((now - stateChangedAt) / 420.0f, 0.0f, 1.0f);
     drawRaceVisor(yOffset, progress);
@@ -489,7 +563,13 @@ void drawFace() {
     drawClosedEyes(yOffset, true);
     drawSmile(MOUTH_X, MOUTH_Y + yOffset, MOUTH_SIZE, pink);
   } else if (activeState == "typing") {
-    drawVerticalEyes(yOffset);
+    if (blinkNow) {
+      drawBarEye(LEFT_EYE_X, yOffset);
+      drawBarEye(RIGHT_EYE_X, yOffset);
+    } else {
+      const int compression = static_cast<int>((now / 180) % 3) * 2;
+      drawVerticalEyes(yOffset, compression);
+    }
     drawSmile(MOUTH_X, MOUTH_Y + yOffset, MOUTH_SIZE, pink);
   } else if (activeState == "notification") {
     drawNotificationIcon(yOffset);
@@ -522,7 +602,7 @@ void drawFace() {
   } else if (activeState == "rage") {
     drawRageFace(yOffset);
   } else {
-    if (activeState == "idle" && (blinkNow || winkNow)) {
+    if ((activeState == "idle" || activeState == "browsing") && (blinkNow || winkNow)) {
       if (blinkNow) {
         drawBarEye(LEFT_EYE_X, yOffset);
         drawBarEye(RIGHT_EYE_X, yOffset);
