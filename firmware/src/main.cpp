@@ -67,6 +67,7 @@ uint16_t purple;
 uint16_t cyanDark;
 uint16_t pinkDark;
 uint16_t purpleDark;
+uint16_t tooth;
 
 const FaceAsset *findFaceAsset(const String &name) {
   for (size_t i = 0; i < FACE_ASSET_COUNT; ++i) {
@@ -504,6 +505,54 @@ void drawRageFace(int yOffset) {
   gfx->fillRect(270, 8 - pulse, 22 + pulse, 10 + pulse, purple);
 }
 
+void drawOrcFace(int yOffset) {
+  // Approved orc vocabulary: smaller solid eyes, no pupils, lower teeth rooted
+  // inside one coherent mouth. A slow mouth change makes it an occasional cameo.
+  pixelDisc(92, 69 + yOffset, 18, cyan);
+  pixelDisc(228, 69 + yOffset, 18, cyan);
+  const bool happy = ((millis() - stateChangedAt) / 2400) % 3 == 2;
+  const int x = happy ? 119 : 124;
+  const int width = happy ? 82 : 72;
+  const int height = happy ? 35 : 31;
+  gfx->fillRect(x, 105 + yOffset, width, height, purple);
+  gfx->fillRect(x + 6, 111 + yOffset, width - 12, height - 12, BLACK);
+  gfx->fillRect(happy ? 132 : 137, (happy ? 125 : 121) + yOffset, happy ? 56 : 46, 7, pink);
+  gfx->fillTriangle(132, 131 + yOffset, 141, 108 + yOffset, 150, 131 + yOffset, tooth);
+  gfx->fillTriangle(170, 131 + yOffset, 179, 108 + yOffset, 188, 131 + yOffset, tooth);
+}
+
+void drawLaunchGlyph(const String &name) {
+  const uint32_t age = millis() - stateChangedAt;
+  const int reveal = constrain(static_cast<int>(age / 45), 1, 12);
+  if (name == "launch_chrome") {
+    // Three stepped color wedges surrounding a cyan browser hub.
+    gfx->fillTriangle(160, 82, 160, 82 - reveal * 4, 160 + reveal * 4, 82, cyan);
+    gfx->fillTriangle(160, 82, 160 + reveal * 4, 82, 160, 82 + reveal * 4, pink);
+    gfx->fillTriangle(160, 82, 160, 82 + reveal * 4, 160 - reveal * 4, 82, purple);
+    gfx->fillTriangle(160, 82, 160 - reveal * 4, 82, 160, 82 - reveal * 4, purple);
+    gfx->fillCircle(160, 82, min(14, reveal + 2), cyan);
+    gfx->fillCircle(160, 82, min(7, reveal / 2 + 2), BLACK);
+  } else if (name == "launch_spotify") {
+    gfx->fillCircle(160, 82, min(54, reveal * 5), purple);
+    for (int i = 0; i < 3; ++i) {
+      gfx->drawArc(154, 74 + i * 18, 38 - i * 5, 24 - i * 3, 205, 335, cyan);
+      gfx->drawArc(154, 74 + i * 18, 37 - i * 5, 23 - i * 3, 205, 335, cyan);
+    }
+    gfx->fillRect(154, 143, 12, 8, pink);
+  } else if (name == "launch_discord") {
+    // Recognizable Discord-like chat/controller glyph, rebuilt from pixels.
+    gfx->fillRoundRect(104, 53, 112, 64, 12, purple);
+    gfx->fillRect(92, 68, 16, 58, purple);
+    gfx->fillRect(212, 68, 16, 58, purple);
+    gfx->fillRect(113, 107, 94, 20, BLACK);
+    gfx->fillRect(126, 75, 18, 18, cyan);
+    gfx->fillRect(176, 75, 18, 18, cyan);
+    gfx->fillRect(150, 101, 20, 7, pink);
+  } else {
+    drawSmile(MOUTH_X, MOUTH_Y, MOUTH_SIZE, pink);
+  }
+}
+
 void drawFace() {
   const uint32_t now = millis();
   if (static_cast<int32_t>(now - nextBlinkAt) >= 0 && now >= blinkUntil) {
@@ -526,7 +575,8 @@ void drawFace() {
                         activeState == "nervous" || activeState == "crying" ||
                         activeState == "sleep" || activeState == "rage" ||
                         activeState == "typing" || activeState == "browsing" ||
-                        activeState == "gaming" || activeState == "idle" ||
+                        activeState == "gaming" || activeState == "orc" ||
+                        activeState.startsWith("launch_") || activeState == "idle" ||
                         blinkNow != lastBlink || winkNow != lastWink;
   if (animated && millis() - lastDrawAt < 90) return;
   int bobStrength = quietMotion ? 1 : 2 + static_cast<int>(volumeLevel * 2.0f);
@@ -559,6 +609,10 @@ void drawFace() {
 
   if (activeState == "time" || activeState == "weather") {
     drawInformationCard(activeState == "weather");
+  } else if (activeState.startsWith("launch_")) {
+    drawLaunchGlyph(activeState);
+  } else if (activeState == "orc") {
+    drawOrcFace(yOffset);
   } else if (activeState == "gaming") {
     drawGamingLife(yOffset, blinkNow);
   } else if (activeState == "browsing_fast") {
@@ -811,6 +865,7 @@ void setup() {
   cyanDark = gfx->color565(3, 48, 58);
   pinkDark = gfx->color565(55, 8, 35);
   purpleDark = gfx->color565(48, 25, 82);
+  tooth = gfx->color565(217, 255, 244);
   gfx->fillScreen(BLACK);
   ledcSetup(0, 5000, 8);
   ledcAttachPin(BACKLIGHT_PIN, 0);

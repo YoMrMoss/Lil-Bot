@@ -91,6 +91,10 @@ class EmotionDirectorTests(unittest.TestCase):
         self.assertFalse(companion.RUNTIME.direct_reaction("cat", 1, "test", cooldown=30))
         self.assertIn("cooldown", companion.RUNTIME.diagnostic_log()[0]["reason"])
 
+    def test_launch_glyph_and_orc_states_are_supported(self):
+        for state in ("launch_chrome", "launch_spotify", "launch_discord", "orc"):
+            self.assertIn(state, companion.VALID_STATES)
+
 
 class HardwareProtocolTests(unittest.TestCase):
     def setUp(self) -> None:

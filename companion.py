@@ -28,9 +28,9 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "companion_config.json"
-BUILD_VERSION = "2.2.0"
+BUILD_VERSION = "2.3.0"
 PROTOCOL_VERSION = 1
-VALID_STATES = {"idle", "typing", "browsing", "browsing_fast", "music", "gaming", "cat", "helper", "showoff", "crying", "nervous", "rage", "notification", "loading", "error", "sleep", "volume", "startup", "reconnect", "time", "weather"}
+VALID_STATES = {"idle", "typing", "browsing", "browsing_fast", "music", "gaming", "orc", "cat", "helper", "showoff", "crying", "nervous", "rage", "notification", "loading", "error", "sleep", "volume", "startup", "reconnect", "time", "weather", "launch_chrome", "launch_spotify", "launch_discord"}
 REACTION_PRIORITY = {"idle": 0, "application": 30, "browsing": 40, "typing": 50, "gaming": 60, "director": 65, "sleep": 70, "volume": 80, "after": 90, "manual": 100}
 
 
@@ -381,6 +381,17 @@ def active_process_name() -> str:
         return "unknown"
 
 
+def running_process_names() -> set[str]:
+    """Return process names only; no window titles or user content are read."""
+    try:
+        import psutil  # type: ignore
+
+        return {str(proc.info.get("name") or "").lower()
+                for proc in psutil.process_iter(["name"])}
+    except Exception:
+        return set()
+
+
 def read_system_volume(fallback_level: float, fallback_muted: bool) -> tuple[float, bool]:
     """Read Windows master volume through Core Audio, with a safe fallback."""
     if platform.system() != "Windows":
@@ -530,7 +541,7 @@ def detection_loop(config: dict, stop: threading.Event) -> None:
     last_media_check = 0.0
     director_config = config.get("emotion_director", {})
     director_enabled = bool(director_config.get("enabled", True))
-    cameo_states = ["time", "weather", "cat", "helper", "showoff", "nervous", "crying"]
+    cameo_states = ["time", "weather", "cat", "helper", "showoff", "nervous", "crying", "orc"]
     random.shuffle(cameo_states)
     first_cameo = max(5.0, float(config.get("idle_cameo_first_seconds", 15)))
     cameo_min = max(20.0, float(director_config.get("cameo_interval_min_seconds", 35)))
@@ -540,6 +551,9 @@ def detection_loop(config: dict, stop: threading.Event) -> None:
         RUNTIME.next_idle_cameo = time.monotonic() + first_cameo
     previous_process = ""
     previous_state = "idle"
+    known_processes = running_process_names()
+    next_process_scan = time.monotonic() + 0.8
+    next_orc_cameo = time.monotonic() + 24.0
     typing_started = 0.0
     mouse_was_active = False
     if platform.system() == "Windows":
@@ -558,6 +572,21 @@ def detection_loop(config: dict, stop: threading.Event) -> None:
             last_media_check = now
         process = active_process_name()
         idle = windows_idle_seconds()
+        if now >= next_process_scan:
+            current_processes = running_process_names()
+            newly_started = current_processes - known_processes
+            launch_faces = {
+                "chrome.exe": ("launch_chrome", "Chrome opened; curious web hello"),
+                "spotify.exe": ("launch_spotify", "Spotify opened; tuning in"),
+                "discord.exe": ("launch_discord", "Discord opened; checking messages"),
+            }
+            for process_name, (launch_state, launch_reason) in launch_faces.items():
+                if process_name in newly_started:
+                    RUNTIME.direct_reaction(launch_state, 1.8, launch_reason,
+                                            cooldown=12, priority=76)
+                    break
+            known_processes = current_processes
+            next_process_scan = now + 0.8
         with RUNTIME.lock:
             RUNTIME.active_process, RUNTIME.idle_seconds = process, idle
             manual = RUNTIME.manual_state if now < RUNTIME.manual_until else None
@@ -586,6 +615,11 @@ def detection_loop(config: dict, stop: threading.Event) -> None:
             if mouse_was_active and not mouse_active and idle < 3 and process not in games | media:
                 RUNTIME.direct_reaction("cat", 1.7, "mouse activity stopped; curious cat peek", cooldown=float(director_config.get("cat_cooldown_seconds", 180)))
             mouse_was_active = mouse_active
+            if (process in games or mapped == "gaming") and now >= next_orc_cameo:
+                RUNTIME.direct_reaction("orc", 3.2,
+                                        "gaming cameo: little orc joined the party",
+                                        cooldown=35, priority=66)
+                next_orc_cameo = now + random.uniform(45, 75)
             with RUNTIME.lock:
                 director = RUNTIME.director_state if now < RUNTIME.director_until else None
                 director_reason = RUNTIME.director_reason

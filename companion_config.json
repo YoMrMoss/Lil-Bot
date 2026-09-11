@@ -64,6 +64,11 @@
     "night_brightness": 45
   },
   "personality": "shy-curious-helper",
+  "application_launch_splashes": {
+    "chrome.exe": "launch_chrome",
+    "spotify.exe": "launch_spotify",
+    "discord.exe": "launch_discord"
+  },
   "animation": {
     "transition_ms": 240,
     "pixel_shift": true,
