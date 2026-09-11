@@ -38,9 +38,16 @@ class FirmwareAssetTests(unittest.TestCase):
     def test_new_glyphs_and_orc_exist_in_both_renderers(self):
         preview = (ROOT / "display-preview.html").read_text(encoding="utf-8")
         firmware = (ROOT / "firmware" / "src" / "main.cpp").read_text(encoding="utf-8")
-        for state in ("launch_chrome", "launch_spotify", "launch_discord", "orc"):
+        for state in ("launch_chrome", "launch_spotify", "launch_discord",
+                      "orc", "orc_happy", "orc_focus", "orc_rage"):
             self.assertIn(state, preview)
             self.assertIn(state, firmware)
+
+    def test_wow_orc_rotation_is_frequent_and_exclusive(self):
+        companion_source = (ROOT / "companion.py").read_text(encoding="utf-8")
+        self.assertIn('wow_processes = {"wow.exe", "wowclassic.exe", "wowclassic_t.exe"}', companion_source)
+        self.assertIn('orc_states = ["orc", "orc_happy", "orc_focus", "orc_rage"]', companion_source)
+        self.assertIn("random.uniform(18, 32)", companion_source)
 
 
 if __name__ == "__main__":

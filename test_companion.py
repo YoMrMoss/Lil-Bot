@@ -92,7 +92,8 @@ class EmotionDirectorTests(unittest.TestCase):
         self.assertIn("cooldown", companion.RUNTIME.diagnostic_log()[0]["reason"])
 
     def test_launch_glyph_and_orc_states_are_supported(self):
-        for state in ("launch_chrome", "launch_spotify", "launch_discord", "orc"):
+        for state in ("launch_chrome", "launch_spotify", "launch_discord",
+                      "orc", "orc_happy", "orc_focus", "orc_rage"):
             self.assertIn(state, companion.VALID_STATES)
 
 

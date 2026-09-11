@@ -28,9 +28,9 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "companion_config.json"
-BUILD_VERSION = "2.3.0"
+BUILD_VERSION = "2.4.0"
 PROTOCOL_VERSION = 1
-VALID_STATES = {"idle", "typing", "browsing", "browsing_fast", "music", "gaming", "orc", "cat", "helper", "showoff", "crying", "nervous", "rage", "notification", "loading", "error", "sleep", "volume", "startup", "reconnect", "time", "weather", "launch_chrome", "launch_spotify", "launch_discord"}
+VALID_STATES = {"idle", "typing", "browsing", "browsing_fast", "music", "gaming", "orc", "orc_happy", "orc_focus", "orc_rage", "cat", "helper", "showoff", "crying", "nervous", "rage", "notification", "loading", "error", "sleep", "volume", "startup", "reconnect", "time", "weather", "launch_chrome", "launch_spotify", "launch_discord"}
 REACTION_PRIORITY = {"idle": 0, "application": 30, "browsing": 40, "typing": 50, "gaming": 60, "director": 65, "sleep": 70, "volume": 80, "after": 90, "manual": 100}
 
 
@@ -542,6 +542,8 @@ def detection_loop(config: dict, stop: threading.Event) -> None:
     director_config = config.get("emotion_director", {})
     director_enabled = bool(director_config.get("enabled", True))
     cameo_states = ["time", "weather", "cat", "helper", "showoff", "nervous", "crying", "orc"]
+    wow_processes = {"wow.exe", "wowclassic.exe", "wowclassic_t.exe"}
+    orc_states = ["orc", "orc_happy", "orc_focus", "orc_rage"]
     random.shuffle(cameo_states)
     first_cameo = max(5.0, float(config.get("idle_cameo_first_seconds", 15)))
     cameo_min = max(20.0, float(director_config.get("cameo_interval_min_seconds", 35)))
@@ -553,7 +555,7 @@ def detection_loop(config: dict, stop: threading.Event) -> None:
     previous_state = "idle"
     known_processes = running_process_names()
     next_process_scan = time.monotonic() + 0.8
-    next_orc_cameo = time.monotonic() + 24.0
+    next_orc_cameo = time.monotonic() + 12.0
     typing_started = 0.0
     mouse_was_active = False
     if platform.system() == "Windows":
@@ -615,11 +617,12 @@ def detection_loop(config: dict, stop: threading.Event) -> None:
             if mouse_was_active and not mouse_active and idle < 3 and process not in games | media:
                 RUNTIME.direct_reaction("cat", 1.7, "mouse activity stopped; curious cat peek", cooldown=float(director_config.get("cat_cooldown_seconds", 180)))
             mouse_was_active = mouse_active
-            if (process in games or mapped == "gaming") and now >= next_orc_cameo:
-                RUNTIME.direct_reaction("orc", 3.2,
-                                        "gaming cameo: little orc joined the party",
-                                        cooldown=35, priority=66)
-                next_orc_cameo = now + random.uniform(45, 75)
+            if process in wow_processes and now >= next_orc_cameo:
+                orc_state = random.choice(orc_states)
+                RUNTIME.direct_reaction(orc_state, 4.0,
+                                        f"WoW cameo: {orc_state.replace('_', ' ')}",
+                                        cooldown=10, priority=66)
+                next_orc_cameo = now + random.uniform(18, 32)
             with RUNTIME.lock:
                 director = RUNTIME.director_state if now < RUNTIME.director_until else None
                 director_reason = RUNTIME.director_reason

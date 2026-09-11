@@ -505,49 +505,75 @@ void drawRageFace(int yOffset) {
   gfx->fillRect(270, 8 - pulse, 22 + pulse, 10 + pulse, purple);
 }
 
-void drawOrcFace(int yOffset) {
-  // Approved orc vocabulary: smaller solid eyes, no pupils, lower teeth rooted
-  // inside one coherent mouth. A slow mouth change makes it an occasional cameo.
-  pixelDisc(92, 69 + yOffset, 18, cyan);
-  pixelDisc(228, 69 + yOffset, 18, cyan);
-  const bool happy = ((millis() - stateChangedAt) / 2400) % 3 == 2;
-  const int x = happy ? 119 : 124;
-  const int width = happy ? 82 : 72;
-  const int height = happy ? 35 : 31;
-  gfx->fillRect(x, 105 + yOffset, width, height, purple);
-  gfx->fillRect(x + 6, 111 + yOffset, width - 12, height - 12, BLACK);
-  gfx->fillRect(happy ? 132 : 137, (happy ? 125 : 121) + yOffset, happy ? 56 : 46, 7, pink);
-  gfx->fillTriangle(132, 131 + yOffset, 141, 108 + yOffset, 150, 131 + yOffset, tooth);
-  gfx->fillTriangle(170, 131 + yOffset, 179, 108 + yOffset, 188, 131 + yOffset, tooth);
+void drawOrcFace(int yOffset, const String &mood) {
+  const bool happy = mood == "orc_happy";
+  const bool focus = mood == "orc_focus";
+  const bool angry = mood == "orc_rage";
+  if (happy) {
+    gfx->drawArc(92, 75 + yOffset, 21, 14, 180, 360, cyan);
+    gfx->drawArc(228, 75 + yOffset, 21, 14, 180, 360, cyan);
+  } else {
+    pixelDisc(92, 69 + yOffset, angry ? 15 : 17, cyan);
+    pixelDisc(228, 69 + yOffset, angry ? 15 : 17, cyan);
+  }
+  if (focus || angry) {
+    const uint16_t brow = angry ? pink : purple;
+    thickLine(66, 45 + yOffset, 111, 57 + yOffset, brow, 7);
+    thickLine(254, 45 + yOffset, 209, 57 + yOffset, brow, 7);
+  }
+  const int x = happy ? 116 : 121;
+  const int width = happy ? 88 : 78;
+  const int height = happy ? 38 : 34;
+  gfx->fillRect(x, 104 + yOffset, width, height, purple);
+  gfx->fillRect(x + 6, 110 + yOffset, width - 12, height - 12, BLACK);
+  gfx->fillRect(happy ? 128 : 133, (happy ? 128 : 125) + yOffset,
+                happy ? 64 : 54, 7, pink);
+  // The two ivory teeth grow upward from the lower mouth edge: a readable
+  // underbite at the panel's real size rather than floating decorative tusks.
+  gfx->fillTriangle(127, 137 + yOffset, 139, 110 + yOffset, 151, 137 + yOffset, tooth);
+  gfx->fillTriangle(169, 137 + yOffset, 181, 110 + yOffset, 193, 137 + yOffset, tooth);
+  if (angry) {
+    gfx->fillRect(276, 18, 9, 25, pink);
+    gfx->fillRect(285, 26, 22, 9, pink);
+    gfx->fillRect(264, 8, 9, 20, pink);
+    gfx->fillRect(273, 8, 20, 9, pink);
+  }
 }
 
 void drawLaunchGlyph(const String &name) {
   const uint32_t age = millis() - stateChangedAt;
-  const int reveal = constrain(static_cast<int>(age / 45), 1, 12);
+  const int reveal = constrain(static_cast<int>(age / 28), 1, 12);
   if (name == "launch_chrome") {
-    // Three stepped color wedges surrounding a cyan browser hub.
-    gfx->fillTriangle(160, 82, 160, 82 - reveal * 4, 160 + reveal * 4, 82, cyan);
-    gfx->fillTriangle(160, 82, 160 + reveal * 4, 82, 160, 82 + reveal * 4, pink);
-    gfx->fillTriangle(160, 82, 160, 82 + reveal * 4, 160 - reveal * 4, 82, purple);
-    gfx->fillTriangle(160, 82, 160 - reveal * 4, 82, 160, 82 - reveal * 4, purple);
-    gfx->fillCircle(160, 82, min(14, reveal + 2), cyan);
-    gfx->fillCircle(160, 82, min(7, reveal / 2 + 2), BLACK);
-  } else if (name == "launch_spotify") {
-    gfx->fillCircle(160, 82, min(54, reveal * 5), purple);
-    for (int i = 0; i < 3; ++i) {
-      gfx->drawArc(154, 74 + i * 18, 38 - i * 5, 24 - i * 3, 205, 335, cyan);
-      gfx->drawArc(154, 74 + i * 18, 37 - i * 5, 23 - i * 3, 205, 335, cyan);
+    // A genuinely round three-segment browser mark; no triangular reveal that
+    // reads as a square on the physical LCD.
+    const int outer = min(56, reveal * 5);
+    if (outer > 34) {
+      gfx->drawArc(160, 80, outer, 35, 275, 359, cyan);
+      gfx->drawArc(160, 80, outer, 35, 0, 19, cyan);
+      gfx->drawArc(160, 80, outer, 35, 35, 139, pink);
+      gfx->drawArc(160, 80, outer, 35, 155, 259, purple);
     }
-    gfx->fillRect(154, 143, 12, 8, pink);
+    gfx->fillCircle(160, 80, min(25, reveal * 2 + 1), cyanDark);
+    gfx->fillCircle(160, 80, min(17, reveal + 5), cyan);
+  } else if (name == "launch_spotify") {
+    // Every element shares the same center so the badge stays optically level.
+    gfx->fillCircle(160, 80, min(54, reveal * 5), purple);
+    for (int i = 0; i < 3; ++i) {
+      const int y = 63 + i * 18;
+      const int radius = 40 - i * 5;
+      gfx->drawArc(160, y, radius, radius - 6, 210, 330, cyan);
+    }
+    gfx->fillRect(155, 143, 10, 7, pink);
   } else if (name == "launch_discord") {
-    // Recognizable Discord-like chat/controller glyph, rebuilt from pixels.
-    gfx->fillRoundRect(104, 53, 112, 64, 12, purple);
-    gfx->fillRect(92, 68, 16, 58, purple);
-    gfx->fillRect(212, 68, 16, 58, purple);
-    gfx->fillRect(113, 107, 94, 20, BLACK);
-    gfx->fillRect(126, 75, 18, 18, cyan);
-    gfx->fillRect(176, 75, 18, 18, cyan);
-    gfx->fillRect(150, 101, 20, 7, pink);
+    // Rounded chat/controller silhouette with cyan eyes and pink ear caps.
+    gfx->fillRoundRect(105, 48, 110, 76, 24, purple);
+    gfx->fillTriangle(105, 94, 92, 126, 124, 111, purple);
+    gfx->fillTriangle(215, 94, 228, 126, 196, 111, purple);
+    gfx->fillRect(92, 64, 12, 42, pink);
+    gfx->fillRect(216, 64, 12, 42, pink);
+    pixelDisc(137, 78, 9, cyan);
+    pixelDisc(183, 78, 9, cyan);
+    gfx->drawArc(160, 83, 31, 25, 18, 162, cyan);
   } else {
     drawSmile(MOUTH_X, MOUTH_Y, MOUTH_SIZE, pink);
   }
@@ -575,7 +601,7 @@ void drawFace() {
                         activeState == "nervous" || activeState == "crying" ||
                         activeState == "sleep" || activeState == "rage" ||
                         activeState == "typing" || activeState == "browsing" ||
-                        activeState == "gaming" || activeState == "orc" ||
+                        activeState == "gaming" || activeState.startsWith("orc") ||
                         activeState.startsWith("launch_") || activeState == "idle" ||
                         blinkNow != lastBlink || winkNow != lastWink;
   if (animated && millis() - lastDrawAt < 90) return;
@@ -611,8 +637,8 @@ void drawFace() {
     drawInformationCard(activeState == "weather");
   } else if (activeState.startsWith("launch_")) {
     drawLaunchGlyph(activeState);
-  } else if (activeState == "orc") {
-    drawOrcFace(yOffset);
+  } else if (activeState.startsWith("orc")) {
+    drawOrcFace(yOffset, activeState);
   } else if (activeState == "gaming") {
     drawGamingLife(yOffset, blinkNow);
   } else if (activeState == "browsing_fast") {
