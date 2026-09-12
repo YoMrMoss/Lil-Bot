@@ -1,6 +1,10 @@
 # Lil Bot
 
-Current build: **2.4.0**
+Current build: **2.5.0**
+
+Build 2.5 makes the approved Orc D arches Lil-Bot's dedicated music eyes. The
+eyes gently lift with the beat, the familiar filled pixel smile stays centered,
+and four cyan, hot-pink, and purple notes travel around the full LCD canvas.
 
 Build 2.4 redraws the Chrome, Spotify, and Discord launch cards specifically
 for the physical 320x170 panel. World of Warcraft now rotates through neutral,
@@ -88,7 +92,7 @@ as though it were the ESP32 display.
 5. Use the state buttons to simulate events that are not detected yet.
 6. Close the command window or press `Ctrl+C` to stop it.
 
-The current simulator is labeled **BUILD 2.4.0** at the top. When updating, close
+The current simulator is labeled **BUILD 2.5.0** at the top. When updating, close
 the previous Lil Bot command window and extract the new ZIP into a new folder
 instead of merging it into an older copy. If the screen still has side grips or
 a USB tab, an older preview is running.

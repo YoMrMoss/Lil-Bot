@@ -49,6 +49,13 @@ class FirmwareAssetTests(unittest.TestCase):
         self.assertIn('orc_states = ["orc", "orc_happy", "orc_focus", "orc_rage"]', companion_source)
         self.assertIn("random.uniform(18, 32)", companion_source)
 
+    def test_orc_d_music_face_matches_preview_and_firmware(self):
+        preview = (ROOT / "display-preview.html").read_text(encoding="utf-8")
+        firmware = (ROOT / "firmware" / "src" / "main.cpp").read_text(encoding="utf-8")
+        self.assertIn("orcDMusicEyes", preview)
+        self.assertIn("drawOrcDMusicEyes", firmware)
+        self.assertIn("drawPixelNote", firmware)
+
 
 if __name__ == "__main__":
     unittest.main()

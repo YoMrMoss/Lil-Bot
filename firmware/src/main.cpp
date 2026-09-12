@@ -163,6 +163,23 @@ void drawClosedEyes(int yOffset = 0, bool happy = false) {
   }
 }
 
+void drawOrcDMusicEyes(int yOffset = 0) {
+  // Orc D's exact eye vocabulary: a full stepped cyan dome with a dark,
+  // rounded lower cutout. There are no pupils or extra cheek marks.
+  const int lift = ((millis() / 190) % 4 == 1) ? 2 : 0;
+  const int centers[2] = {92, 228};
+  for (int center : centers) {
+    const int y = 73 + yOffset - lift;
+    gfx->fillRect(center - 19, y - 25, 38, 5, cyan);
+    gfx->fillRect(center - 25, y - 20, 50, 7, cyan);
+    gfx->fillRect(center - 29, y - 13, 58, 22, cyan);
+    gfx->fillRect(center - 25, y + 9, 50, 8, cyan);
+    gfx->fillRect(center - 16, y + 4, 32, 17, BLACK);
+    gfx->fillRect(center - 11, y - 1, 22, 6, BLACK);
+    gfx->fillRect(center - 25, y + 17, 50, 7, BLACK);
+  }
+}
+
 void drawReadingGlasses(int yOffset) {
   // Substantial 8 px frames with colored brow and temple blocks.
   gfx->fillRect(31, 54 + yOffset, 75, 8, purple);
@@ -469,16 +486,23 @@ void drawLoadingStatus() {
   gfx->fillRoundRect(78, 11, width, 7, 3, cyan);
 }
 
+void drawPixelNote(int x, int y, uint16_t color, bool reverse = false) {
+  gfx->fillRect(x - 4, y - 4, 9, 8, color);
+  const int stemX = reverse ? x - 5 : x + 5;
+  gfx->fillRect(stemX, y - 18, 4, 18, color);
+  gfx->fillRect(reverse ? stemX - 9 : stemX, y - 18, 13, 4, color);
+}
+
 void drawMusicNotes() {
-  int travel = (millis() / 35) % 28;
-  int left = 38 + travel;
-  int right = 282 - travel;
-  gfx->fillCircle(left, 20, 5, pink);
-  thickLine(left + 5, 20, left + 5, 5, pink, 3);
-  thickLine(left + 5, 5, left + 15, 8, pink, 3);
-  gfx->fillCircle(right, 24, 5, cyan);
-  thickLine(right + 5, 24, right + 5, 9, cyan, 3);
-  thickLine(right + 5, 9, right + 15, 12, cyan, 3);
+  // Four independent paths roam around the full panel instead of hovering in
+  // one top corner. Integer motion remains crisp and inexpensive on ESP32.
+  const uint32_t travel = millis() / 34;
+  const int waveA = static_cast<int>((travel / 2) % 18);
+  const int waveB = static_cast<int>((travel / 3) % 22);
+  drawPixelNote(15 + travel % 290, 24 + waveA, cyan);
+  drawPixelNote(305 - (travel * 3 / 4) % 290, 44 - waveA, pink, true);
+  drawPixelNote(42 + waveB, 153 - (travel * 2) % 138, purple);
+  drawPixelNote(278 - waveB, 153 - (travel * 3 / 2 + 55) % 138, cyan, true);
 }
 
 void drawRageFace(int yOffset) {
@@ -648,7 +672,7 @@ void drawFace() {
   } else if (activeState == "sleep") {
     drawSleepFace(yOffset);
   } else if (activeState == "music") {
-    drawClosedEyes(yOffset, true);
+    drawOrcDMusicEyes(yOffset);
     drawSmile(MOUTH_X, MOUTH_Y + yOffset, MOUTH_SIZE, pink);
   } else if (activeState == "typing") {
     if (blinkNow) {
