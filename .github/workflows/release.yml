@@ -8,6 +8,7 @@ on:
       - "v*"
     paths:
       - VERSION
+      - .github/workflows/release.yml
   workflow_dispatch:
 
 permissions:
@@ -38,7 +39,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p release/LilBot
-          cp VERSION companion.py companion_config.json display-preview.html requirements.txt start_lilbot.bat update_flash_start_lilbot.bat github_updater.py check_for_updates.py check_for_updates.bat README.md ENCLOSURE_NOTES.md GITHUB_UPDATES.md PROTOCOL.md release/LilBot/
+          cp VERSION companion.py companion_config.json display-preview.html requirements.txt start_lilbot.bat update_flash_start_lilbot.bat github_updater.py check_for_updates.py check_for_updates.bat README.md ENCLOSURE_NOTES.md GITHUB_UPDATES.md PROTOCOL.md BACKGROUND_SETUP.md HALLOWEEN_UPDATE.md background_lilbot.pyw start_background.vbs install_background.bat install_background.ps1 release/LilBot/
           mkdir -p release/LilBot/.vscode
           cp .vscode/tasks.json release/LilBot/.vscode/
           mkdir -p release/LilBot/firmware
