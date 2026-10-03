@@ -62,6 +62,7 @@ bool touchDown = false;
 int8_t gazeHint = 0;
 uint8_t brightness = 80;
 uint16_t cyan;
+uint16_t orange;
 uint16_t pink;
 uint16_t purple;
 uint16_t cyanDark;
@@ -122,6 +123,7 @@ void applyColorTreatment() {
   spreadPixelGlow(cyan, purpleDark, cyanDark);
   spreadPixelGlow(pink, purpleDark, pinkDark);
   spreadPixelGlow(purple, pinkDark, purpleDark);
+  spreadPixelGlow(orange, pinkDark, purpleDark);
 }
 
 void thickLine(int x1, int y1, int x2, int y2, uint16_t color, int width = 4) {
@@ -163,17 +165,18 @@ void drawClosedEyes(int yOffset = 0, bool happy = false) {
   }
 }
 
-void drawOrcDMusicEyes(int yOffset = 0) {
+void drawOrcDMusicEyes(int yOffset = 0, uint16_t eyeColor = 0) {
+  if (!eyeColor) eyeColor = cyan;
   // Orc D's exact eye vocabulary: a full stepped cyan dome with a dark,
   // rounded lower cutout. There are no pupils or extra cheek marks.
   const int lift = ((millis() / 190) % 4 == 1) ? 2 : 0;
   const int centers[2] = {92, 228};
   for (int center : centers) {
     const int y = 73 + yOffset - lift;
-    gfx->fillRect(center - 19, y - 25, 38, 5, cyan);
-    gfx->fillRect(center - 25, y - 20, 50, 7, cyan);
-    gfx->fillRect(center - 29, y - 13, 58, 22, cyan);
-    gfx->fillRect(center - 25, y + 9, 50, 8, cyan);
+    gfx->fillRect(center - 19, y - 25, 38, 5, eyeColor);
+    gfx->fillRect(center - 25, y - 20, 50, 7, eyeColor);
+    gfx->fillRect(center - 29, y - 13, 58, 22, eyeColor);
+    gfx->fillRect(center - 25, y + 9, 50, 8, eyeColor);
     gfx->fillRect(center - 16, y + 4, 32, 17, BLACK);
     gfx->fillRect(center - 11, y - 1, 22, 6, BLACK);
     gfx->fillRect(center - 25, y + 17, 50, 7, BLACK);
@@ -493,16 +496,54 @@ void drawPixelNote(int x, int y, uint16_t color, bool reverse = false) {
   gfx->fillRect(reverse ? stemX - 9 : stemX, y - 18, 13, 4, color);
 }
 
-void drawMusicNotes() {
+void drawMusicNotes(bool seasonal = false) {
   // Four independent paths roam around the full panel instead of hovering in
   // one top corner. Integer motion remains crisp and inexpensive on ESP32.
   const uint32_t travel = millis() / 34;
   const int waveA = static_cast<int>((travel / 2) % 18);
   const int waveB = static_cast<int>((travel / 3) % 22);
-  drawPixelNote(15 + travel % 290, 24 + waveA, cyan);
-  drawPixelNote(305 - (travel * 3 / 4) % 290, 44 - waveA, pink, true);
+  drawPixelNote(15 + travel % 290, 24 + waveA, seasonal ? orange : cyan);
+  drawPixelNote(305 - (travel * 3 / 4) % 290, 44 - waveA, seasonal ? purple : pink, true);
   drawPixelNote(42 + waveB, 153 - (travel * 2) % 138, purple);
-  drawPixelNote(278 - waveB, 153 - (travel * 3 / 2 + 55) % 138, cyan, true);
+  drawPixelNote(278 - waveB, 153 - (travel * 3 / 2 + 55) % 138, seasonal ? orange : cyan, true);
+}
+
+void drawHalloweenSpider() {
+  const int x = 292, y = 26 + (millis() / 180) % 16;
+  for (int sy = 3; sy < y - 5; sy += 6) gfx->fillRect(x, sy, 2, 3, purple);
+  gfx->fillRect(x - 5, y - 5, 12, 10, purple);
+  for (int leg = 0; leg < 3; ++leg) {
+    gfx->drawLine(x - 5, y - 3 + leg * 3, x - 11, y - 6 + leg * 6, purple);
+    gfx->drawLine(x + 6, y - 3 + leg * 3, x + 12, y - 6 + leg * 6, purple);
+  }
+  gfx->fillRect(x - 3, y - 2, 2, 2, cyan);
+  gfx->fillRect(x + 3, y - 2, 2, 2, cyan);
+}
+void drawHalloweenBat(int x, int y) {
+  const int flap = (millis() / 240) % 2 ? 3 : 0;
+  gfx->fillRect(x - 4, y, 8, 7, purple);
+  gfx->fillRect(x - 15, y - flap, 11, 4, purple);
+  gfx->fillRect(x + 4, y - flap, 11, 4, purple);
+  gfx->fillRect(x - 18, y - 4 - flap, 5, 5, purple);
+  gfx->fillRect(x + 13, y - 4 - flap, 5, 5, purple);
+}
+void drawHalloweenFace(int yOffset) {
+  if (activeState == "halloween_countdown") {
+    drawCenteredText(clockText, 58, 3, orange);
+    drawCenteredText("UNTIL HALLOWEEN", 105, 2, cyan);
+    drawHalloweenSpider();
+    return;
+  }
+  const bool groove = activeState == "halloween_music";
+  drawOrcDMusicEyes(yOffset, groove ? cyan : orange);
+  drawSmile(MOUTH_X, MOUTH_Y + yOffset, MOUTH_SIZE, groove ? pink : orange);
+  if (groove) {
+    drawHalloweenBat(28, 44); drawHalloweenBat(292, 44);
+  } else if (activeState == "halloween_spider") drawHalloweenSpider();
+  else {
+    gfx->fillRect(54, 102 + yOffset, 8, 4, cyan);
+    gfx->fillRect(258, 102 + yOffset, 8, 4, cyan);
+  }
 }
 
 void drawRageFace(int yOffset) {
@@ -603,6 +644,47 @@ void drawLaunchGlyph(const String &name) {
   }
 }
 
+// Shared presence layer: move the expression as one unit so glasses, tusks,
+// and emoticon hands never detach. Status overlays are drawn afterward.
+struct PresenceMotion { int x; int y; };
+PresenceMotion presenceMotion(uint32_t now, const String &state, bool quiet, int hint) {
+  if (state == "time" || state == "weather" || state == "halloween_countdown" ||
+      state.startsWith("launch_")) return {0, 0};
+  const int breath = static_cast<int>(roundf(sinf((now % 6400) * 6.2831853f / 6400) * (quiet ? 1 : 2)));
+  if (quiet || state == "sleep") return {0, breath};
+  const uint32_t phase = now % 16000;
+  float glance = 0;
+  if (phase >= 3200 && phase < 5200)
+    glance = min(1.0f, min((phase - 3200) / 400.0f, (5200 - phase) / 400.0f));
+  else if (phase >= 9200 && phase < 11200)
+    glance = -min(1.0f, min((phase - 9200) / 400.0f, (11200 - phase) / 400.0f));
+  return {hint ? constrain(hint, -1, 1) * 3 : static_cast<int>(roundf(glance * 3)), breath};
+}
+void shiftExpression(int dx, int dy) {
+  if (!frameCanvas || gfx != frameCanvas || (!dx && !dy)) return;
+  uint16_t *pixels = frameCanvas->getFramebuffer();
+  if (!pixels) return;
+  int left = 320, right = -1, top = 170, bottom = -1;
+  for (int y = 0; y < 170; ++y) for (int x = 0; x < 320; ++x) {
+    if (pixels[y * 320 + x] == BLACK) continue;
+    left = min(left, x); right = max(right, x);
+    top = min(top, y); bottom = max(bottom, y);
+  }
+  if (right < 0) return;
+  dx = constrain(dx, -left, 319 - right);
+  dy = constrain(dy, -top, 169 - bottom);
+  // Traversal protects the source pixels without a second full framebuffer.
+  for (int row = 0; row < 170; ++row) {
+    const int y = dy > 0 ? 169 - row : row;
+    for (int col = 0; col < 320; ++col) {
+      const int x = dx > 0 ? 319 - col : col;
+      const int sx = x - dx, sy = y - dy;
+      pixels[y * 320 + x] = sx >= 0 && sx < 320 && sy >= 0 && sy < 170
+          ? pixels[sy * 320 + sx] : BLACK;
+    }
+  }
+}
+
 void drawFace() {
   const uint32_t now = millis();
   if (static_cast<int32_t>(now - nextBlinkAt) >= 0 && now >= blinkUntil) {
@@ -618,36 +700,19 @@ void drawFace() {
   const bool blinkNow = blinkEligible && now < blinkUntil;
   const bool winkNow = activeState == "idle" && !blinkNow && now < winkUntil;
   const bool quietMotion = brightness <= 20;
-  const bool animated = musicBob || activeState == "music" ||
-                        activeState == "loading" || activeState == "reconnect" ||
-                        activeState == "browsing_fast" || activeState == "cat" ||
-                        activeState == "helper" || activeState == "showoff" ||
-                        activeState == "nervous" || activeState == "crying" ||
-                        activeState == "sleep" || activeState == "rage" ||
-                        activeState == "typing" || activeState == "browsing" ||
-                        activeState == "gaming" || activeState.startsWith("orc") ||
-                        activeState.startsWith("launch_") || activeState == "idle" ||
-                        blinkNow != lastBlink || winkNow != lastWink;
-  if (animated && millis() - lastDrawAt < 90) return;
+  // Every expression gets presence motion at the existing bounded frame rate.
+  const bool animated = true;
+  if (millis() - lastDrawAt < 90) return;
   int bobStrength = quietMotion ? 1 : 2 + static_cast<int>(volumeLevel * 2.0f);
   int bob = musicBob ? -static_cast<int>((millis() / 125) % 3) * bobStrength : 0;
-  const bool lifeMotion = activeState == "idle" || activeState == "typing" ||
-                          activeState == "browsing" || activeState == "gaming";
-  if (lifeMotion && !quietMotion) {
-    const int breathPhase = (now / 700) % 4;
-    bob += (breathPhase == 1 || breathPhase == 2) ? 1 : 0;
-  }
   int drift = pixelShift ? static_cast<int>((millis() / 25000) % 3) - 1 : 0;
   int yOffset = bob + drift;
   if (activeState == "sleep") yOffset += static_cast<int>((now / 650) % 3);
   if (activeState == "nervous") yOffset += static_cast<int>((now / 140) % 3) - 1;
   const int nervousShakeX = activeState == "nervous"
       ? static_cast<int>((now / 85) % 3) - 1 : 0;
-  int gazeX = 0;
-  if ((activeState == "idle" || activeState == "browsing") && !quietMotion) {
-    gazeX = gazeHint ? gazeHint * 6
-                     : (static_cast<int>((millis() / 4200) % 3) - 1) * 4;
-  }
+  const PresenceMotion presence = presenceMotion(now, activeState, quietMotion, gazeHint);
+  const int gazeX = 0; // Shared expression motion replaces the base-only gaze.
   if (!animated && activeState == lastRenderedState && yOffset == lastRenderedOffset && gazeX == lastRenderedGaze) return;
   lastDrawAt = millis();
   lastRenderedState = activeState;
@@ -657,7 +722,9 @@ void drawFace() {
   lastWink = winkNow;
   gfx->fillScreen(BLACK);
 
-  if (activeState == "time" || activeState == "weather") {
+  if (activeState.startsWith("halloween_")) {
+    drawHalloweenFace(yOffset);
+  } else if (activeState == "time" || activeState == "weather") {
     drawInformationCard(activeState == "weather");
   } else if (activeState.startsWith("launch_")) {
     drawLaunchGlyph(activeState);
@@ -740,9 +807,11 @@ void drawFace() {
     }
   }
 
+  shiftExpression(presence.x, presence.y);
   if (activeState == "volume") drawVolumeStatus();
   if (activeState == "loading" || activeState == "reconnect") drawLoadingStatus();
-  if (musicBob || activeState == "music") drawMusicNotes();
+  if (activeState == "music" || activeState == "halloween_music")
+    drawMusicNotes(activeState == "halloween_music");
   if (unreadNotifications > 0) drawNotificationBadge();
   if (!linked) gfx->fillCircle(308, 12, 3, purple);
   if (frameCanvas && gfx == frameCanvas) {
@@ -910,6 +979,7 @@ void setup() {
     gfx = frameCanvas;
   }
   cyan = gfx->color565(25, 247, 255);
+  orange = gfx->color565(255, 138, 24);
   pink = gfx->color565(255, 45, 170);
   purple = gfx->color565(139, 61, 255);
   cyanDark = gfx->color565(3, 48, 58);
@@ -940,6 +1010,11 @@ void loop() {
   if (linked && millis() - lastFrameAt > LINK_TIMEOUT_MS) {
     linked = false;
     activeState = "reconnect";
+    stateChangedAt = millis();
+  }
+  if (!linked && activeState == "reconnect" && millis() - stateChangedAt > 2200) {
+    activeState = "idle";
+    stateChangedAt = millis();
   }
   drawFace();
   delay(2);

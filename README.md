@@ -1,6 +1,8 @@
 # Lil Bot
 
-Current build: **2.5.0**
+Current build: **2.6.0**
+
+Prepared Halloween and quiet-background update: see [HALLOWEEN_UPDATE.md](HALLOWEEN_UPDATE.md) and [BACKGROUND_SETUP.md](BACKGROUND_SETUP.md).
 
 Build 2.5 makes the approved Orc D arches Lil-Bot's dedicated music eyes. The
 eyes gently lift with the beat, the familiar filled pixel smile stays centered,
@@ -92,7 +94,7 @@ as though it were the ESP32 display.
 5. Use the state buttons to simulate events that are not detected yet.
 6. Close the command window or press `Ctrl+C` to stop it.
 
-The current simulator is labeled **BUILD 2.5.0** at the top. When updating, close
+The current simulator is labeled **BUILD 2.6.0** at the top. When updating, close
 the previous Lil Bot command window and extract the new ZIP into a new folder
 instead of merging it into an older copy. If the screen still has side grips or
 a USB tab, an older preview is running.

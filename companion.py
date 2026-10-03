@@ -9,7 +9,10 @@ from __future__ import annotations
 
 import argparse
 import ctypes
+from datetime import date
 import json
+import logging
+from logging.handlers import RotatingFileHandler
 import mimetypes
 import os
 import platform
@@ -28,10 +31,39 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "companion_config.json"
-BUILD_VERSION = "2.5.0"
+BUILD_VERSION = "2.6.0"
+STARTED_AT = time.monotonic()
+HEALTH = {"reconnects": 0, "last_error": "", "last_write": None}
+
+
+def configure_logging():
+    log_dir = Path(os.environ.get("LOCALAPPDATA", str(ROOT))) / "LilBot" / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    handler = RotatingFileHandler(log_dir / "companion.log", maxBytes=1_000_000,
+                                 backupCount=3, encoding="utf-8")
+    logging.basicConfig(level=logging.INFO, handlers=[handler],
+                        format="%(asctime)s %(levelname)s %(message)s")
+    threading.excepthook = lambda args: logging.error(
+        "Worker %s failed", args.thread.name,
+        exc_info=(args.exc_type, args.exc_value, args.exc_traceback))
 PROTOCOL_VERSION = 1
 VALID_STATES = {"idle", "typing", "browsing", "browsing_fast", "music", "gaming", "orc", "orc_happy", "orc_focus", "orc_rage", "cat", "helper", "showoff", "crying", "nervous", "rage", "notification", "loading", "error", "sleep", "volume", "startup", "reconnect", "time", "weather", "launch_chrome", "launch_spotify", "launch_discord"}
 REACTION_PRIORITY = {"idle": 0, "application": 30, "browsing": 40, "typing": 50, "gaming": 60, "director": 65, "sleep": 70, "volume": 80, "after": 90, "manual": 100}
+VALID_STATES.update({"halloween_happy", "halloween_music", "halloween_spider", "halloween_countdown"})
+
+
+def halloween_enabled(config, today=None):
+    today = today or date.today()
+    mode = config.get("seasonal", {}).get("halloween", "auto")
+    return mode == "on" or (mode == "auto" and today.month == 10)
+
+
+def halloween_days(today=None):
+    today = today or date.today()
+    target = date(today.year, 10, 31)
+    if today > target:
+        target = date(today.year + 1, 10, 31)
+    return (target - today).days
 
 
 def load_config() -> dict:
@@ -212,6 +244,8 @@ class Runtime:
         frame = self.display_frame()
         modifiers = frame["modifiers"]
         clock = time.strftime("%I:%M %p").lstrip("0")
+        if frame["state"] == "halloween_countdown":
+            clock = "HALLOWEEN!" if halloween_days() == 0 else f"{halloween_days()} DAYS"
         temperature = "--" if frame["ambient"]["temperature"] is None else str(round(float(frame["ambient"]["temperature"])))
         location = str(frame["ambient"]["location"] or "LOCAL").replace("|", "/")[:24]
         return "LILBOT|1|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}\n".format(
@@ -642,6 +676,9 @@ def detection_loop(config: dict, stop: threading.Event) -> None:
                     if RUNTIME.idle_cameo_index and RUNTIME.idle_cameo_index % len(cameo_states) == 0:
                         random.shuffle(cameo_states)
                     cameo = cameo_states[RUNTIME.idle_cameo_index % len(cameo_states)]
+                    if halloween_enabled(config) and RUNTIME.idle_cameo_index % 3 == 0:
+                        seasonal = ["halloween_happy", "halloween_spider", "halloween_countdown"]
+                        cameo = seasonal[(RUNTIME.idle_cameo_index // 3) % 3]
                     if cameo == "weather" and RUNTIME.temperature is None:
                         cameo = "helper"
                     RUNTIME.idle_cameo_index += 1
@@ -662,6 +699,8 @@ def detection_loop(config: dict, stop: threading.Event) -> None:
             with RUNTIME.lock:
                 if not manual and now >= RUNTIME.next_idle_cameo:
                     RUNTIME.next_idle_cameo = now + random.uniform(cameo_min, cameo_max)
+        if state == "music" and halloween_enabled(config):
+            state = "halloween_music"
         RUNTIME.set_state(state, reason, source, priority)
         if state == "typing" and not typing_started:
             typing_started = now
@@ -736,6 +775,7 @@ def serial_bridge_loop(config: dict, stop: threading.Event) -> None:
     baud = int(serial_config.get("baud", 115200))
     interval = max(0.1, float(serial_config.get("heartbeat_seconds", 0.5)))
     preferred = str(serial_config.get("port", "auto"))
+    retry_delay = 1.0
     while not stop.is_set():
         connection = None
         port = ""
@@ -754,7 +794,8 @@ def serial_bridge_loop(config: dict, stop: threading.Event) -> None:
                 connection = None
         if connection is None:
             RUNTIME.device_status(False, reason="waiting for Lil Bot USB display")
-            stop.wait(1.0)
+            stop.wait(retry_delay)
+            retry_delay = min(15.0, retry_delay * 1.5)
             continue
         print(f"Found {port}; waiting for Lil Bot firmware handshake.")
         handshake_deadline = time.monotonic() + 5.0
@@ -765,11 +806,15 @@ def serial_bridge_loop(config: dict, stop: threading.Event) -> None:
                 now = time.monotonic()
                 if handshake and now >= next_send:
                     connection.write(RUNTIME.wire_frame().encode("ascii"))
+                    HEALTH["last_write"] = time.time()
                     next_send = now + interval
                 line = connection.readline().decode("utf-8", errors="replace").strip()
                 if line:
                     if line.startswith(("READY:LILBOT/1", "HELLO:LILBOT/1")) and not handshake:
                         handshake = True
+                        retry_delay = 1.0
+                        HEALTH["reconnects"] += 1
+                        logging.info("Firmware handshake on %s", port)
                         next_send = 0.0
                         RUNTIME.device_status(True, port, f"Lil Bot display connected on {port}")
                         print(f"Lil Bot display connected on {port}.")
@@ -784,11 +829,15 @@ def serial_bridge_loop(config: dict, stop: threading.Event) -> None:
                     raise serial.SerialTimeoutException("firmware handshake timeout")
                 stop.wait(0.01)
         except (OSError, serial.SerialException) as exc:
+            HEALTH["last_error"] = str(exc)
+            logging.warning("USB connection interrupted: %s", exc)
             print(f"Lil Bot display disconnected: {exc}")
             RUNTIME.direct_reaction("error", 1.2, "USB display connection was interrupted", cooldown=float(config.get("emotion_director", {}).get("connection_cooldown_seconds", 60)), priority=85)
         finally:
             connection.close()
             RUNTIME.device_status(False, reason=f"Lil Bot display disconnected from {port}")
+        stop.wait(retry_delay)
+        retry_delay = min(15.0, retry_delay * 1.5)
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -822,7 +871,9 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_json(RUNTIME.display_frame())
             return
         if urlparse(self.path).path == "/api/health":
-            self.send_json({"ok": True, "version": 1})
+            self.send_json({"ok": True, "build": BUILD_VERSION,
+                            "uptime_seconds": round(time.monotonic() - STARTED_AT),
+                            "usb": RUNTIME.snapshot().get("device", {}), **HEALTH})
             return
         if urlparse(self.path).path == "/api/log":
             self.send_json({"events": RUNTIME.diagnostic_log()})
@@ -880,6 +931,7 @@ class Handler(SimpleHTTPRequestHandler):
 
 def main() -> int:
     global APP_CONFIG
+    configure_logging()
     parser = argparse.ArgumentParser(description="Run the Lil Bot companion and virtual display.")
     parser.add_argument("--no-browser", action="store_true", help="Do not open the preview automatically.")
     parser.add_argument("--host", help="Override configured host.")
@@ -893,6 +945,12 @@ def main() -> int:
     host = args.host or config["host"]
     port = args.port or int(config["port"])
     stop = threading.Event()
+    # Bind before starting workers: a second launch cannot grab the USB port.
+    try:
+        server = ThreadingHTTPServer((host, port), Handler)
+    except OSError:
+        logging.info("Companion port already occupied; stopping duplicate launch")
+        return 1
     install_activity_listeners()
     detector = threading.Thread(target=detection_loop, args=(config, stop), daemon=True)
     detector.start()
@@ -900,7 +958,6 @@ def main() -> int:
     weather_worker.start()
     serial_worker = threading.Thread(target=serial_bridge_loop, args=(config, stop), daemon=True)
     serial_worker.start()
-    server = ThreadingHTTPServer((host, port), Handler)
     url = f"http://{host}:{port}/display-preview.html?v={BUILD_VERSION}"
     print(f"Lil Bot companion running at {url}")
     print("Press Ctrl+C to stop.")
