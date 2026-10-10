@@ -652,13 +652,28 @@ PresenceMotion presenceMotion(uint32_t now, const String &state, bool quiet, int
       state.startsWith("launch_")) return {0, 0};
   const int breath = static_cast<int>(roundf(sinf((now % 6400) * 6.2831853f / 6400) * (quiet ? 1 : 2)));
   if (quiet || state == "sleep") return {0, breath};
-  const uint32_t phase = now % 16000;
+  // Irregular rests and occasional center glances avoid a repeating sweep.
+  static uint32_t nextGlanceAt = 0;
+  static uint32_t glanceStartedAt = 0;
+  static int glanceDirection = 0;
+  static bool glanceActive = false;
+  if (static_cast<int32_t>(now - nextGlanceAt) >= 0) {
+    glanceStartedAt = now;
+    glanceDirection = static_cast<int>(random(-1, 2));
+    glanceActive = true;
+    nextGlanceAt = now + random(5000, 11000);
+  }
+  const uint32_t age = now - glanceStartedAt;
   float glance = 0;
-  if (phase >= 3200 && phase < 5200)
-    glance = min(1.0f, min((phase - 3200) / 400.0f, (5200 - phase) / 400.0f));
-  else if (phase >= 9200 && phase < 11200)
-    glance = -min(1.0f, min((phase - 9200) / 400.0f, (11200 - phase) / 400.0f));
-  return {hint ? constrain(hint, -1, 1) * 3 : static_cast<int>(roundf(glance * 3)), breath};
+  if (glanceActive && age < 2200) {
+    const float ease = min(1.0f, min(age / 450.0f, (2200 - age) / 550.0f));
+    glance = glanceDirection * ease;
+  }
+  // A small perk-up eases back into the existing expression in under a second.
+  const uint32_t entryAge = now - stateChangedAt;
+  const int lift = entryAge < 900
+      ? -static_cast<int>(roundf(sinf(entryAge * 3.1415927f / 900) * 3)) : 0;
+  return {hint ? constrain(hint, -1, 1) * 3 : static_cast<int>(roundf(glance * 3)), breath + lift};
 }
 void shiftExpression(int dx, int dy) {
   if (!frameCanvas || gfx != frameCanvas || (!dx && !dy)) return;
@@ -696,7 +711,8 @@ void drawFace() {
     nextWinkAt = now + random(11000, 22000);
   }
   const bool blinkEligible = activeState == "idle" || activeState == "typing" ||
-                             activeState == "browsing" || activeState == "gaming";
+                             activeState == "browsing" || activeState == "gaming" ||
+                             activeState == "music";
   const bool blinkNow = blinkEligible && now < blinkUntil;
   const bool winkNow = activeState == "idle" && !blinkNow && now < winkUntil;
   const bool quietMotion = brightness <= 20;
@@ -739,7 +755,10 @@ void drawFace() {
   } else if (activeState == "sleep") {
     drawSleepFace(yOffset);
   } else if (activeState == "music") {
-    drawOrcDMusicEyes(yOffset);
+    if (blinkNow) {
+      thickLine(63, 73 + yOffset, 121, 73 + yOffset, cyan, 5);
+      thickLine(199, 73 + yOffset, 257, 73 + yOffset, cyan, 5);
+    } else drawOrcDMusicEyes(yOffset);
     drawSmile(MOUTH_X, MOUTH_Y + yOffset, MOUTH_SIZE, pink);
   } else if (activeState == "typing") {
     if (blinkNow) {
@@ -831,7 +850,9 @@ void acceptFrame(const String &line) {
   const uint32_t incoming = doc["sequence"] | sequence;
   if (incoming >= sequence) {
     sequence = incoming;
-    activeState = String(static_cast<const char *>(doc["state"] | "idle"));
+    const String incomingState = String(static_cast<const char *>(doc["state"] | "idle"));
+    if (incomingState != activeState) stateChangedAt = millis();
+    activeState = incomingState;
   }
   volumeLevel = doc["volume_level"] | volumeLevel;
   volumeMuted = doc["volume_muted"] | volumeMuted;
@@ -1019,3 +1040,4 @@ void loop() {
   drawFace();
   delay(2);
 }
+

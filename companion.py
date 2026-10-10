@@ -31,7 +31,7 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "companion_config.json"
-BUILD_VERSION = "2.6.0"
+BUILD_VERSION = "2.6.1"
 STARTED_AT = time.monotonic()
 HEALTH = {"reconnects": 0, "last_error": "", "last_write": None}
 
@@ -333,11 +333,13 @@ class Runtime:
             else:
                 gesture = "tap"
                 self.unread_notifications = 0
-                state, duration = "rage", 2.4
-                reason = f"touchscreen table flip; cleared {cleared} notification{'s' if cleared != 1 else ''}"
+                playful = APP_CONFIG.get("animation", {}).get("playful_taps", False)
+                state = random.choice(("helper", "cat", "showoff", "rage")) if playful else "rage"
+                duration = 2.4 if state == "rage" else 1.8
+                reason = f"touchscreen {state} reaction; cleared {cleared} notification{'s' if cleared != 1 else ''}"
             self.manual_state = state
             self.manual_until = now + duration
-            if gesture == "tap" and APP_CONFIG.get("animation", {}).get("after_reactions", True):
+            if gesture == "tap" and state == "rage" and APP_CONFIG.get("animation", {}).get("after_reactions", True):
                 self.after_state = "nervous"
                 self.after_until = now + duration + 1.2
             else:
@@ -975,3 +977,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
