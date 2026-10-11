@@ -55,6 +55,7 @@ bool musicBob = false;
 bool pixelShift = true;
 uint16_t unreadNotifications = 0;
 String clockText = "--:--";
+String dateText = "";
 String temperatureText = "--";
 String locationText = "LOCAL";
 bool linked = false;
@@ -141,7 +142,23 @@ void pixelDisc(int x, int y, int radius, uint16_t color) {
 
 void drawSmile(int x, int y, int size, uint16_t color) {
   // Filled five-block smile: chunky, readable, and shared by every face.
-  const int unit = max(4, size / 7);
+  const uint32_t age = millis() - stateChangedAt;
+  const uint32_t phase = age % 14000;
+  const bool quiet = brightness <= 20;
+  // Brief expressions with long rests; no continuous talking animation.
+  if (!quiet && ((activeState == "browsing_fast" && age < 350) ||
+      (phase >= 10400 && phase < 11000))) {
+    gfx->fillRect(x - 8, y - 8, 16, 20, color);
+    gfx->fillRect(x - 3, y - 3, 6, 10, BLACK);
+    return;
+  }
+  if (!quiet && activeState == "browsing" && phase >= 6000 && phase < 6900) {
+    gfx->fillRect(x - 14, y, 28, 5, color);
+    return;
+  }
+  const bool grin = !quiet && ((phase >= 3000 && phase < 4200) ||
+      ((activeState == "music" || activeState == "halloween_music") && age % 1800 < 450));
+  const int unit = max(4, size / 7) + (grin ? 1 : 0);
   gfx->fillRect(x - unit * 3, y - unit, unit, unit, color);
   gfx->fillRect(x - unit * 2, y, unit, unit, color);
   gfx->fillRect(x - unit, y + unit, unit * 2, unit, color);
@@ -183,44 +200,44 @@ void drawOrcDMusicEyes(int yOffset = 0, uint16_t eyeColor = 0) {
   }
 }
 
-void drawReadingGlasses(int yOffset) {
-  // Substantial 8 px frames with colored brow and temple blocks.
-  gfx->fillRect(31, 54 + yOffset, 75, 8, purple);
-  gfx->fillRect(31, 62 + yOffset, 8, 54, cyan);
-  gfx->fillRect(98, 62 + yOffset, 8, 54, cyan);
-  gfx->fillRect(39, 108 + yOffset, 59, 8, cyan);
-  gfx->fillRect(214, 54 + yOffset, 75, 8, purple);
-  gfx->fillRect(214, 62 + yOffset, 8, 54, cyan);
-  gfx->fillRect(281, 62 + yOffset, 8, 54, cyan);
-  gfx->fillRect(222, 108 + yOffset, 59, 8, cyan);
-  gfx->fillRect(106, 73 + yOffset, 108, 8, pink);
-  gfx->fillRect(15, 63 + yOffset, 16, 8, pink);
-  gfx->fillRect(289, 63 + yOffset, 16, 8, pink);
+void drawReadingGlasses(int yOffset, int glance, bool closed) {
+  for (int cx : {80, 240}) {
+    // Purple stepped rims, black separation, and solid shaded B eyes.
+    gfx->fillRect(cx - 43, 43 + yOffset, 86, 76, purple);
+    gfx->fillRect(cx - 47, 51 + yOffset, 94, 60, purple);
+    gfx->fillRect(cx - 35, 51 + yOffset, 70, 60, BLACK);
+    gfx->fillRect(cx - 39, 59 + yOffset, 78, 44, BLACK);
+    const int h = closed ? 6 : 40;
+    const int x = cx - 20 + glance;
+    const int y = 82 - h / 2 + yOffset;
+    gfx->fillRoundRect(x + 2, y + 2, 40, h, 5, cyanDark);
+    gfx->fillRoundRect(x, y, 40, h, 5, cyan);
+    if (!closed) gfx->fillRect(x + 6, y + h - 6, 28, 6, cyanDark);
+    gfx->fillRect(cx - 12, 26 + yOffset, 24, 6, purple);
+  }
+  gfx->fillRect(123, 71 + yOffset, 74, 8, purple);
+  gfx->fillRect(20, 65 + yOffset, 13, 10, pink);
+  gfx->fillRect(287, 65 + yOffset, 13, 10, pink);
 }
 
-void drawRaceVisor(int yOffset, float progress) {
-  const int slide = static_cast<int>((1.0f - progress) * -58.0f);
-  // Pixel helmet crown and ear blocks.
-  gfx->fillRect(58, 20 + yOffset, 204, 8, pink);
-  gfx->fillRect(38, 28 + yOffset, 20, 12, purple);
-  gfx->fillRect(262, 28 + yOffset, 20, 12, purple);
-  gfx->fillRect(22, 40 + yOffset, 16, 82, pink);
-  gfx->fillRect(282, 40 + yOffset, 16, 82, pink);
-  gfx->fillRect(150, 20 + yOffset, 20, 20, purple);
-  // Layered visor: purple glass, cyan rim, magenta lower trim.
-  gfx->fillRect(38, 48 + yOffset + slide, 244, 64, purpleDark);
-  gfx->fillRect(30, 56 + yOffset + slide, 8, 48, cyan);
-  gfx->fillRect(282, 56 + yOffset + slide, 8, 48, cyan);
-  gfx->fillRect(38, 48 + yOffset + slide, 244, 8, cyan);
-  gfx->fillRect(38, 104 + yOffset + slide, 244, 8, pink);
-  // Speed D keeps Lil Bot's familiar wide, chunky eyes inside the visor.
-  pixelDisc(82, 80 + yOffset + slide, 22, cyan);
-  pixelDisc(238, 80 + yOffset + slide, 22, cyan);
-  gfx->fillRect(82, 72 + yOffset + slide, 10, 18, BLACK);
-  gfx->fillRect(228, 72 + yOffset + slide, 10, 18, BLACK);
-  const int streak = (millis() / 55) % 18;
-  gfx->fillRect(2, 58 + streak, 21, 5, cyan);
-  gfx->fillRect(297, 90 - streak, 21, 5, pink);
+void drawSpeedShades(int yOffset) {
+  const uint32_t age = millis() - stateChangedAt;
+  const int sweep = static_cast<int>((age % 900) * 52 / 900);
+  for (int cx : {80, 240}) {
+    gfx->fillRoundRect(cx - 44, 49 + yOffset, 88, 58, 8, purple);
+    gfx->fillRoundRect(cx - 37, 56 + yOffset, 74, 44, 6, cyanDark);
+    gfx->fillRoundRect(cx - 37, 56 + yOffset, 74, 38, 6, cyan);
+    // Three short stepped glare blocks stay well within each lens.
+    for (int i = 0; i < 3; ++i)
+      gfx->fillRect(cx - 32 + sweep + i * 4, 82 - i * 5 + yOffset, 5, 5, BLACK);
+  }
+  gfx->fillRect(124, 63 + yOffset, 72, 9, purple);
+  const int streak = (age / 120) % 3;
+  for (int i = 0; i < 3; ++i) {
+    const int width = 10 + ((i + streak) % 3) * 3;
+    gfx->fillRect(3, 78 + i * 10 + yOffset, width, 5, purple);
+    gfx->fillRect(317 - width, 78 + i * 10 + yOffset, width, 5, purple);
+  }
 }
 
 void drawHelperFace(int yOffset) {
@@ -254,8 +271,9 @@ void drawShowoffFace(int yOffset) {
   gfx->fillRect(241, 83 + yOffset, 20, 8, pink);
   gfx->fillRect(59, 78 + yOffset, 9, 9, cyan);
   gfx->fillRect(241, 78 + yOffset, 9, 9, cyan);
+  const int grinLift = brightness > 20 && (millis() - stateChangedAt) % 9000 < 900 ? 3 : 0;
   gfx->fillRect(135, 122 + yOffset, 36, 8, pink);
-  gfx->fillRect(171, 114 + yOffset, 17, 8, pink);
+  gfx->fillRect(171, 114 + yOffset - grinLift, 17, 8 + grinLift, pink);
   gfx->fillRect(22, 40 + yOffset, 26, 7, purple);
   gfx->fillRect(31, 31 + yOffset, 7, 25, purple);
 }
@@ -270,9 +288,10 @@ void drawCatFace(int yOffset) {
   gfx->fillRect(246, 59 + yOffset, 14, 14, cyan);
   pixelDisc(92, 83 + yOffset, 16, cyan);
   pixelDisc(228, 83 + yOffset, 16, cyan);
+  const int catSmile = brightness > 20 && (millis() - stateChangedAt) % 10000 < 1000 ? 3 : 0;
   gfx->fillRect(154, 105 + yOffset, 12, 8, pink);
-  thickLine(160, 113 + yOffset, 147, 124 + yOffset, pink, 5);
-  thickLine(160, 113 + yOffset, 173, 124 + yOffset, pink, 5);
+  thickLine(160, 113 + yOffset, 147 - catSmile, 124 + yOffset, pink, 5);
+  thickLine(160, 113 + yOffset, 173 + catSmile, 124 + yOffset, pink, 5);
   gfx->fillRect(28, 105 + yOffset, 43, 5, purple);
   gfx->fillRect(249, 105 + yOffset, 43, 5, purple);
   gfx->fillRect(34, 116 + yOffset, 37, 5, purple);
@@ -315,7 +334,8 @@ void drawSleepFace(int yOffset) {
   gfx->fillRect(207, 83 + yOffset, 64, 8, purple);
   gfx->fillRect(57, 91 + yOffset, 48, 7, cyan);
   gfx->fillRect(215, 91 + yOffset, 48, 7, cyan);
-  gfx->fillRect(153, 124 + yOffset, 14, 10, pink);
+  const int snoreMouth = (millis() / 1200) % 2;
+  gfx->fillRect(153 - snoreMouth, 124 + yOffset, 14 + snoreMouth * 2, 8 + snoreMouth * 2, pink);
   const bool moonPulse = ((millis() / 700) % 2) == 0;
   pixelDisc(224, 35, moonPulse ? 18 : 16, purple);
   pixelDisc(232, 29, moonPulse ? 14 : 12, BLACK);
@@ -465,7 +485,7 @@ void drawInformationCard(bool weatherCard) {
     drawCenteredText(locationText, 138, 1, purple);
   } else {
     drawCenteredText(clockText, 48, 5, cyan);
-    drawCenteredText("JUST A QUICK TIME CHECK", 116, 1, pink);
+    drawCenteredText(dateText.length() ? dateText : "JUST A QUICK TIME CHECK", 116, 2, pink);
     drawCenteredText("READY IF YOU NEED ME", 138, 1, purple);
   }
 }
@@ -588,7 +608,8 @@ void drawOrcFace(int yOffset, const String &mood) {
   }
   const int x = happy ? 116 : 121;
   const int width = happy ? 88 : 78;
-  const int height = happy ? 38 : 34;
+  const int mouthMotion = brightness > 20 && (millis() - stateChangedAt) % 8000 < 800 ? 2 : 0;
+  const int height = (happy ? 38 : 34) + mouthMotion;
   gfx->fillRect(x, 104 + yOffset, width, height, purple);
   gfx->fillRect(x + 6, 110 + yOffset, width - 12, height - 12, BLACK);
   gfx->fillRect(happy ? 128 : 133, (happy ? 128 : 125) + yOffset,
@@ -749,8 +770,10 @@ void drawFace() {
   } else if (activeState == "gaming") {
     drawGamingLife(yOffset, blinkNow);
   } else if (activeState == "browsing_fast") {
-    float progress = constrain((now - stateChangedAt) / 420.0f, 0.0f, 1.0f);
-    drawRaceVisor(yOffset, progress);
+    drawSpeedShades(yOffset);
+    drawSmile(MOUTH_X, MOUTH_Y + yOffset, MOUTH_SIZE, pink);
+  } else if (activeState == "browsing") {
+    drawReadingGlasses(yOffset, presence.x, blinkNow);
     drawSmile(MOUTH_X, MOUTH_Y + yOffset, MOUTH_SIZE, pink);
   } else if (activeState == "sleep") {
     drawSleepFace(yOffset);
@@ -811,7 +834,7 @@ void drawFace() {
     } else {
       drawBaseEyes(yOffset, gazeX);
     }
-    if (activeState == "browsing") drawReadingGlasses(yOffset);
+
     if (activeState == "crying") {
       gfx->fillTriangle(LEFT_EYE_X, 115, LEFT_EYE_X - 6, 128, LEFT_EYE_X + 6, 128, cyan);
       gfx->drawArc(MOUTH_X, MOUTH_Y + 10, 21, 17, 200, 340, pink);
@@ -866,9 +889,9 @@ void acceptFrame(const String &line) {
 
 void acceptWireFrame(const String &line) {
   // LILBOT|protocol|sequence|state|volume%|muted|musicBob|brightness|pixelShift|unread
-  String fields[14];
+  String fields[15];
   int start = 0;
-  for (int i = 0; i < 14; ++i) {
+  for (int i = 0; i < 15; ++i) {
     int separator = line.indexOf('|', start);
     if (separator < 0) separator = line.length();
     fields[i] = line.substring(start, separator);
@@ -888,11 +911,12 @@ void acceptWireFrame(const String &line) {
   const String incomingTemperature = fields[11];
   const String incomingLocation = fields[12];
   const int8_t incomingGaze = constrain(fields[13].toInt(), -1, 1);
+  const String incomingDate = fields[14];
   const bool visualChanged = incomingState != activeState ||
       incomingMusicBob != musicBob || incomingPixelShift != pixelShift ||
       incomingUnread != unreadNotifications || incomingClock != clockText ||
       incomingTemperature != temperatureText || incomingLocation != locationText ||
-      incomingGaze != gazeHint ||
+      incomingGaze != gazeHint || incomingDate != dateText ||
       (incomingState == "volume" &&
        (incomingMuted != volumeMuted || abs(incomingVolume - volumeLevel) >= 0.01f));
   sequence = static_cast<uint32_t>(fields[2].toInt());
@@ -908,6 +932,7 @@ void acceptWireFrame(const String &line) {
   temperatureText = incomingTemperature;
   locationText = incomingLocation;
   gazeHint = incomingGaze;
+  dateText = incomingDate;
   linked = true;
   lastFrameAt = millis();
   // Heartbeats keep the link alive without clearing a static LCD frame.
@@ -1040,4 +1065,5 @@ void loop() {
   drawFace();
   delay(2);
 }
+
 

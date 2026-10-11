@@ -31,7 +31,7 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "companion_config.json"
-BUILD_VERSION = "2.6.1"
+BUILD_VERSION = "2.6.2"
 STARTED_AT = time.monotonic()
 HEALTH = {"reconnects": 0, "last_error": "", "last_write": None}
 
@@ -64,6 +64,16 @@ def halloween_days(today=None):
     if today > target:
         target = date(today.year + 1, 10, 31)
     return (target - today).days
+
+
+def sleep_card(elapsed: float, temperature_available: bool) -> str:
+    """A calm 60-second cycle: rest, clock/date, rest, then weather."""
+    phase = max(0.0, elapsed) % 60
+    if 15 <= phase < 30:
+        return "time"
+    if 40 <= phase < 60:
+        return "weather" if temperature_available else "time"
+    return "sleep"
 
 
 def load_config() -> dict:
@@ -130,6 +140,11 @@ def load_config() -> dict:
             defaults.update(saved)
         except (OSError, json.JSONDecodeError) as exc:
             print(f"Warning: could not read {CONFIG_PATH.name}: {exc}")
+    integrations = {"code.exe": "helper", "devenv.exe": "helper",
+                    "obs64.exe": "showoff", "winword.exe": "browsing",
+                    "acrord32.exe": "browsing", "acrobat.exe": "browsing"}
+    integrations.update(defaults.get("application_states", {}))
+    defaults["application_states"] = integrations
     return defaults
 
 
@@ -184,9 +199,14 @@ class Runtime:
         with self.lock:
             profile = current_display_profile(APP_CONFIG)
             now = time.monotonic()
+            screen_state = self.state
+            if self.state == "sleep":
+                screen_state = sleep_card(self.idle_seconds - float(APP_CONFIG.get("sleep_after_seconds", 300)), self.temperature is not None)
+                profile["brightness"] = min(20, profile["brightness"])
             return {
                 "build": BUILD_VERSION,
                 "state": self.state,
+                "screen_state": screen_state,
                 "reason": self.reason,
                 "active_process": self.active_process,
                 "idle_seconds": round(self.idle_seconds, 1),
@@ -231,6 +251,9 @@ class Runtime:
 
     def display_frame(self) -> dict:
         snapshot = self.snapshot()
+        snapshot["state"] = snapshot["screen_state"]
+        if snapshot["reaction"]["source"] == "sleep" or self.state == "sleep":
+            snapshot["modifiers"]["music_bob"] = False
         keys = ("protocol_version", "sequence", "state", "display", "modifiers", "volume_level", "volume_muted", "unread_notifications", "ambient")
         return {key: snapshot[key] for key in keys}
 
@@ -248,7 +271,7 @@ class Runtime:
             clock = "HALLOWEEN!" if halloween_days() == 0 else f"{halloween_days()} DAYS"
         temperature = "--" if frame["ambient"]["temperature"] is None else str(round(float(frame["ambient"]["temperature"])))
         location = str(frame["ambient"]["location"] or "LOCAL").replace("|", "/")[:24]
-        return "LILBOT|1|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}\n".format(
+        return "LILBOT|1|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}\n".format(
             frame["sequence"],
             frame["state"],
             int(round(float(frame["volume_level"]) * 100)),
@@ -261,6 +284,7 @@ class Runtime:
             temperature,
             location,
             int(modifiers.get("gaze_direction", 0)),
+            time.strftime("%a %b %d"),
         )
 
     def device_status(self, connected: bool, port: str = "", reason: str = "") -> None:
@@ -977,4 +1001,5 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
 
