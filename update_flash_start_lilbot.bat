@@ -7,7 +7,7 @@ echo ============================================================
 echo   Lil Bot: GitHub update ^> firmware flash ^> companion
 echo ============================================================
 echo.
-echo Close any other Lil Bot window and PlatformIO Serial Monitor.
+echo Quit Lil Bot from the system tray and close PlatformIO Serial Monitor.
 echo Keep the display connected by USB.
 echo.
 
@@ -39,6 +39,11 @@ exit /b %errorlevel%
 echo.
 echo Lil Bot update or flash did not complete.
 echo Quit Lil Bot from the system tray and close Serial Monitor.
-echo Reconnect the display, check its current port in Device Manager, and try again.
+echo If the COM port disappeared, hold BOOT, tap RST, then release BOOT.
+echo Check Device Manager for the board's bootloader COM port.
+echo To select that port, open Command Prompt here and run:
+echo   set "PLATFORMIO_UPLOAD_PORT=COM7"
+echo   update_flash_start_lilbot.bat
+echo Replace COM7 with the port shown in Device Manager.
 pause
 exit /b 1

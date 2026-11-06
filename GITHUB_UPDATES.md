@@ -26,5 +26,20 @@ Release. Once firmware development begins, the same release can also contain
 
 Before flashing, quit Lil Bot from the tray and close Serial Monitor so the
 updater has exclusive access to the display. PlatformIO detects the upload
-port each run. If the board changes ports, reconnect it and check its current
-port in Windows Device Manager before retrying.
+port each run.
+
+If esptool says the detected COM port does not exist, enter upload mode before
+retrying. With the board plugged in, hold **BOOT**, tap **RST**, then release
+**BOOT**. In Windows Device Manager, look under **Ports (COM & LPT)** for the
+port that appeared. From Command Prompt in the Lil Bot folder, run these two
+commands with that port in place of `COM7`.
+
+```bat
+set "PLATFORMIO_UPLOAD_PORT=COM7"
+update_flash_start_lilbot.bat
+```
+
+The override applies only to this Command Prompt and its child processes.
+Clear it with `set "PLATFORMIO_UPLOAD_PORT="` once the upload finishes. If the
+display stays in upload mode after a successful flash, tap **RST** to start
+the firmware.
