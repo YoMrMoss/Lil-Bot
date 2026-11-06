@@ -5,6 +5,12 @@ import companion
 
 
 class SeasonalTests(unittest.TestCase):
+    def test_autumn_auto_only_in_november_and_override(self):
+        for month in range(1, 13):
+            self.assertEqual(companion.autumn_enabled({}, date(2026, month, 2)), month == 11)
+        self.assertFalse(companion.autumn_enabled({'seasonal': {'autumn': 'off'}}, date(2026, 11, 2)))
+        self.assertTrue(companion.autumn_enabled({'seasonal': {'autumn': 'on'}}, date(2026, 12, 2)))
+
     def test_auto_only_in_october_and_override(self):
         for month in range(1, 13):
             self.assertEqual(companion.halloween_enabled({}, date(2026, month, 2)), month == 10)
@@ -21,7 +27,7 @@ class SeasonalTests(unittest.TestCase):
         runtime.set_state('halloween_countdown', 'test', 'manual')
         with patch('companion.halloween_days', return_value=29):
             frame = runtime.wire_frame().strip().split('|')
-        self.assertEqual(len(frame), 14)
+        self.assertEqual(len(frame), 15)
         self.assertEqual(frame[3], 'halloween_countdown')
         self.assertEqual(frame[10], '29 DAYS')
         with patch('companion.halloween_days', return_value=0):

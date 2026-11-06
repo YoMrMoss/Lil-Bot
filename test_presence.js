@@ -4,7 +4,7 @@ const source = fs.readFileSync(__dirname + '/display-preview.html', 'utf8').matc
 new Function(source);
 const body = source.slice(source.indexOf('function presenceMotion'), source.indexOf('function render'));
 const motion = new Function(body + ';return presenceMotion;')();
-for (const state of ['idle','typing','browsing','cat','helper','showoff','crying','nervous','rage','gaming','browsing_fast','music','orc','halloween_happy']) {
+for (const state of ['idle','typing','browsing','cat','helper','showoff','crying','nervous','rage','gaming','browsing_fast','music','orc','halloween_happy','autumn_cozy']) {
   assert.deepStrictEqual(motion(4000, state, false), motion(4000, 'idle', false));
   for (let t = 0; t < 16000; t += 50) {
     const m = motion(t, state, false);

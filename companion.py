@@ -31,7 +31,7 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "companion_config.json"
-BUILD_VERSION = "2.6.2"
+BUILD_VERSION = "2.7.0"
 STARTED_AT = time.monotonic()
 HEALTH = {"reconnects": 0, "last_error": "", "last_write": None}
 
@@ -50,12 +50,19 @@ PROTOCOL_VERSION = 1
 VALID_STATES = {"idle", "typing", "browsing", "browsing_fast", "music", "gaming", "orc", "orc_happy", "orc_focus", "orc_rage", "cat", "helper", "showoff", "crying", "nervous", "rage", "notification", "loading", "error", "sleep", "volume", "startup", "reconnect", "time", "weather", "launch_chrome", "launch_spotify", "launch_discord"}
 REACTION_PRIORITY = {"idle": 0, "application": 30, "browsing": 40, "typing": 50, "gaming": 60, "director": 65, "sleep": 70, "volume": 80, "after": 90, "manual": 100}
 VALID_STATES.update({"halloween_happy", "halloween_music", "halloween_spider", "halloween_countdown"})
+VALID_STATES.add("autumn_cozy")
 
 
 def halloween_enabled(config, today=None):
     today = today or date.today()
     mode = config.get("seasonal", {}).get("halloween", "auto")
     return mode == "on" or (mode == "auto" and today.month == 10)
+
+
+def autumn_enabled(config, today=None):
+    today = today or date.today()
+    mode = config.get("seasonal", {}).get("autumn", "auto")
+    return mode == "on" or (mode == "auto" and today.month == 11)
 
 
 def halloween_days(today=None):
@@ -705,6 +712,8 @@ def detection_loop(config: dict, stop: threading.Event) -> None:
                     if halloween_enabled(config) and RUNTIME.idle_cameo_index % 3 == 0:
                         seasonal = ["halloween_happy", "halloween_spider", "halloween_countdown"]
                         cameo = seasonal[(RUNTIME.idle_cameo_index // 3) % 3]
+                    elif RUNTIME.idle_cameo_index % 3 == 0 and autumn_enabled(config):
+                        cameo = "autumn_cozy"
                     if cameo == "weather" and RUNTIME.temperature is None:
                         cameo = "helper"
                     RUNTIME.idle_cameo_index += 1
@@ -802,10 +811,17 @@ def serial_bridge_loop(config: dict, stop: threading.Event) -> None:
     interval = max(0.1, float(serial_config.get("heartbeat_seconds", 0.5)))
     preferred = str(serial_config.get("port", "auto"))
     retry_delay = 1.0
+    last_attempted_port = ""
     while not stop.is_set():
         connection = None
         port = ""
-        for port in candidate_serial_ports(preferred):
+        ports = candidate_serial_ports(preferred)
+        # A port can open successfully even when another device owns the far end.
+        # Give the next candidate a turn after a failed handshake or lost link.
+        if last_attempted_port in ports:
+            start = ports.index(last_attempted_port) + 1
+            ports = ports[start:] + ports[:start]
+        for port in ports:
             try:
                 connection = serial.Serial()
                 connection.port = port
@@ -815,6 +831,7 @@ def serial_bridge_loop(config: dict, stop: threading.Event) -> None:
                 connection.dtr = False
                 connection.rts = False
                 connection.open()
+                last_attempted_port = port
                 break
             except (OSError, serial.SerialException):
                 connection = None
@@ -824,19 +841,21 @@ def serial_bridge_loop(config: dict, stop: threading.Event) -> None:
             retry_delay = min(15.0, retry_delay * 1.5)
             continue
         print(f"Found {port}; waiting for Lil Bot firmware handshake.")
-        handshake_deadline = time.monotonic() + 5.0
+        last_reply_at = time.monotonic()
         next_send = 0.0
         handshake = False
         try:
             while not stop.is_set():
                 now = time.monotonic()
                 if handshake and now >= next_send:
-                    connection.write(RUNTIME.wire_frame().encode("ascii"))
+                    connection.write(RUNTIME.wire_frame().encode("ascii", errors="replace"))
                     HEALTH["last_write"] = time.time()
                     next_send = now + interval
                 line = connection.readline().decode("utf-8", errors="replace").strip()
-                if line:
-                    if line.startswith(("READY:LILBOT/1", "HELLO:LILBOT/1")) and not handshake:
+                hello = line.startswith(("READY:LILBOT/1", "HELLO:LILBOT/1"))
+                if hello or (handshake and line.startswith(("ACK:", "TOUCH:"))):
+                    last_reply_at = time.monotonic()
+                    if not handshake:
                         handshake = True
                         retry_delay = 1.0
                         HEALTH["reconnects"] += 1
@@ -851,14 +870,16 @@ def serial_bridge_loop(config: dict, stop: threading.Event) -> None:
                         gesture = line.partition(":")[2].lower()
                         if gesture in {"tap", "double", "hold", "swipe_left", "swipe_right"}:
                             RUNTIME.touch_reaction(gesture)
-                if not handshake and now >= handshake_deadline:
-                    raise serial.SerialTimeoutException("firmware handshake timeout")
+                if time.monotonic() - last_reply_at >= 5.0:
+                    reason = "firmware heartbeat timeout" if handshake else "firmware handshake timeout"
+                    raise serial.SerialTimeoutException(reason)
                 stop.wait(0.01)
         except (OSError, serial.SerialException) as exc:
             HEALTH["last_error"] = str(exc)
             logging.warning("USB connection interrupted: %s", exc)
             print(f"Lil Bot display disconnected: {exc}")
-            RUNTIME.direct_reaction("error", 1.2, "USB display connection was interrupted", cooldown=float(config.get("emotion_director", {}).get("connection_cooldown_seconds", 60)), priority=85)
+            if handshake:
+                RUNTIME.direct_reaction("error", 1.2, "USB display connection was interrupted", cooldown=float(config.get("emotion_director", {}).get("connection_cooldown_seconds", 60)), priority=85)
         finally:
             connection.close()
             RUNTIME.device_status(False, reason=f"Lil Bot display disconnected from {port}")
