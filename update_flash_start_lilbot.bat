@@ -15,16 +15,19 @@ py github_updater.py
 if errorlevel 1 goto :failed
 
 set "PIO=%USERPROFILE%\.platformio\penv\Scripts\platformio.exe"
-if not exist "%PIO%" (
-  echo PlatformIO was not found. Installing it for your Python account...
-  py -m pip install platformio
-  if errorlevel 1 goto :failed
-  set "PIO=%USERPROFILE%\.platformio\penv\Scripts\platformio.exe"
-)
-
 echo.
 echo Building and flashing the connected Lil Bot display...
-"%PIO%" run --project-dir "%~dp0firmware" --target upload
+if exist "%PIO%" (
+  "%PIO%" run --project-dir "%~dp0firmware" --target upload
+) else (
+  py -m platformio --version >nul 2>&1
+  if errorlevel 1 (
+    echo Installing PlatformIO for your Python account...
+    py -m pip install platformio
+    if errorlevel 1 goto :failed
+  )
+  py -m platformio run --project-dir "%~dp0firmware" --target upload
+)
 if errorlevel 1 goto :failed
 
 echo.
@@ -34,7 +37,8 @@ exit /b %errorlevel%
 
 :failed
 echo.
-echo Lil Bot update or flash did not complete. The existing firmware is safe.
-echo Check that COM5 is not open in Serial Monitor, then try again.
+echo Lil Bot update or flash did not complete.
+echo Quit Lil Bot from the system tray and close Serial Monitor.
+echo Reconnect the display, check its current port in Device Manager, and try again.
 pause
 exit /b 1

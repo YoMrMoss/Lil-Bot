@@ -24,7 +24,7 @@ Release. Once firmware development begins, the same release can also contain
 - **Optional future:** Wi-Fi over-the-air firmware updates. USB should remain the
   recovery path if an OTA update is interrupted.
 
-Unattended background flashing remains disabled because the Windows PC must
-have exclusive access to COM5 and the board must remain powered. The one-click
-task automates the complete process while keeping the upload visible and
-recoverable.
+Before flashing, quit Lil Bot from the tray and close Serial Monitor so the
+updater has exclusive access to the display. PlatformIO detects the upload
+port each run. If the board changes ports, reconnect it and check its current
+port in Windows Device Manager before retrying.

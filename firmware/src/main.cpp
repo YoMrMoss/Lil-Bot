@@ -566,6 +566,30 @@ void drawHalloweenFace(int yOffset) {
   }
 }
 
+void drawAutumnFace(int yOffset, bool quiet) {
+  drawOrcDMusicEyes(yOffset);
+  drawSmile(MOUTH_X, MOUTH_Y + yOffset - 15, MOUTH_SIZE, pink);
+  // A stepped scarf, with a folded end and two stitches.
+  gfx->fillRect(113, 139 + yOffset, 94, 9, orange);
+  gfx->fillRect(119, 148 + yOffset, 82, 4, orange);
+  gfx->fillRect(185, 148 + yOffset, 16, 12, orange);
+  gfx->fillRect(188, 155 + yOffset, 3, 3, pink);
+  gfx->fillRect(195, 155 + yOffset, 3, 3, pink);
+  const uint32_t step = (millis() - stateChangedAt) / (quiet ? 150 : 65);
+  for (int i = 0; i < 3; ++i) {
+    const int phase = (step + i * 39) % 118;
+    const int sway = phase % 24;
+    const int x = (i == 0 ? 30 : i == 1 ? 284 : 160) + (sway < 12 ? sway : 24 - sway);
+    const int y = i == 2 ? 10 + phase % 29 : 12 + phase;
+    const int tilt = (phase / 12) % 2 ? 1 : -1;
+    const uint16_t color = i == 1 ? pink : orange;
+    gfx->fillRect(x + tilt * 3, y, 6, 3, color);
+    gfx->fillRect(x, y + 3, 9, 6, color);
+    gfx->fillRect(x - tilt * 3, y + 9, 6, 3, color);
+    gfx->fillRect(x - tilt * 5, y + 12, 3, 3, purple);
+  }
+}
+
 void drawRageFace(int yOffset) {
   // Rage B: familiar wide eyes plus a playful pulsing comic anger vessel.
   const int phase = (millis() / 180) % 4;
@@ -761,6 +785,8 @@ void drawFace() {
 
   if (activeState.startsWith("halloween_")) {
     drawHalloweenFace(yOffset);
+  } else if (activeState == "autumn_cozy") {
+    drawAutumnFace(yOffset, quietMotion);
   } else if (activeState == "time" || activeState == "weather") {
     drawInformationCard(activeState == "weather");
   } else if (activeState.startsWith("launch_")) {

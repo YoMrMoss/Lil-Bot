@@ -1,6 +1,54 @@
 import unittest
+from threading import Event
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import companion
+
+
+class SerialRecoveryTests(unittest.TestCase):
+    def test_skips_silent_port_and_reopens_after_heartbeat_loss(self):
+        stop = Event()
+        attempts = []
+        elapsed = 0
+
+        class FakeSerial:
+            def open(self):
+                attempts.append(self.port)
+                self.reads = 0
+
+            def readline(self):
+                nonlocal elapsed
+                elapsed += 1
+                self.reads += 1
+                if self.port != "COM5" and self.reads == 1:
+                    return b"HELLO:LILBOT/1\n"
+                if self.port == "COM10":
+                    stop.set()
+                    return b"ACK:1:idle\n"
+                return b""
+
+            def write(self, frame):
+                return len(frame)
+
+            def close(self):
+                pass
+
+        fake_serial = SimpleNamespace(Serial=FakeSerial, SerialException=OSError,
+                                      SerialTimeoutException=OSError)
+        health = {"reconnects": 0}
+        with patch.dict("sys.modules", {"serial": fake_serial}), \
+             patch.object(companion, "RUNTIME", companion.Runtime()), \
+             patch.object(companion, "HEALTH", health), \
+             patch.object(companion.time, "monotonic", side_effect=lambda: elapsed), \
+             patch.object(stop, "wait"), \
+             patch.object(companion, "candidate_serial_ports",
+                          side_effect=[["COM5", "COM9"], ["COM5", "COM9"], ["COM10"]]):
+            companion.serial_bridge_loop({"serial": {"port": "auto"}}, stop)
+
+        self.assertEqual(attempts, ["COM5", "COM9", "COM10"])
+        self.assertEqual(health["reconnects"], 2)
+        self.assertEqual(health["last_error"], "firmware heartbeat timeout")
 
 
 class ReactionPriorityTests(unittest.TestCase):

@@ -33,7 +33,7 @@ class FirmwareAssetTests(unittest.TestCase):
         preview = (ROOT / "display-preview.html").read_text(encoding="utf-8")
         expression_block = re.search(r"const expressions=\{(.+?)\};", preview).group(1)
         preview_states = set(re.findall(r"(?:^|,)([a-z_]+):\[", expression_block))
-        self.assertEqual(preview_states, companion.VALID_STATES - {"time", "weather"})
+        self.assertEqual(preview_states, companion.VALID_STATES)
 
     def test_new_glyphs_and_orc_exist_in_both_renderers(self):
         preview = (ROOT / "display-preview.html").read_text(encoding="utf-8")
