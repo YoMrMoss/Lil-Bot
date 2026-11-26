@@ -18,6 +18,9 @@ def main():
     mutex = ctypes.windll.kernel32.CreateMutexW(None, False, "Local\\LilBotBackground")
     if ctypes.windll.kernel32.GetLastError() == 183:
         return
+    ctypes.windll.kernel32.CreateEventW.restype = ctypes.c_void_p
+    ctypes.windll.kernel32.WaitForSingleObject.argtypes = [ctypes.c_void_p, ctypes.c_ulong]
+    quit_event = ctypes.windll.kernel32.CreateEventW(None, True, False, "Local\\LilBotQuit")
     log_dir = Path(os.environ["LOCALAPPDATA"]) / "LilBot" / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     stop = threading.Event()
@@ -104,14 +107,20 @@ def main():
             pystray.MenuItem("Open preview", lambda: webbrowser.open(url + "/display-preview.html")),
             pystray.MenuItem("Health", lambda: webbrowser.open(url + "/api/health")),
             pystray.MenuItem("Pause / resume", toggle),
-            pystray.MenuItem("Restart", restart),
-            pystray.MenuItem("Quit before firmware update", quit_bot)))
+            pystray.MenuItem("Restart Lil-Bot", restart),
+            pystray.MenuItem("Quit Lil-Bot", quit_bot)))
+        def watch_quit():
+            while not stop.wait(0.2):
+                if ctypes.windll.kernel32.WaitForSingleObject(quit_event, 0) == 0:
+                    quit_bot(icon, None)
+        threading.Thread(target=watch_quit, daemon=True).start()
         icon.run()
     finally:
         stop.set()
         with guard:
             halt()
         ctypes.windll.kernel32.CloseHandle(mutex)
+        ctypes.windll.kernel32.CloseHandle(quit_event)
 
 
 if __name__ == "__main__":

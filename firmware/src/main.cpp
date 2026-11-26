@@ -3,6 +3,7 @@
 #include <Arduino_GFX_Library.h>
 #include <Wire.h>
 #include "face_assets.h"
+#include "app_icons.h"
 
 namespace {
 constexpr uint8_t POWER_PIN = 15;
@@ -698,42 +699,28 @@ void drawOrcFace(int yOffset, const String &mood) {
 }
 
 void drawLaunchGlyph(const String &name) {
-  const uint32_t age = millis() - stateChangedAt;
-  const int reveal = constrain(static_cast<int>(age / 28), 1, 12);
+  const AppIconSpan *spans = nullptr;
+  size_t count = 0;
+  String label;
   if (name == "launch_chrome") {
-    // A genuinely round three-segment browser mark; no triangular reveal that
-    // reads as a square on the physical LCD.
-    const int outer = min(56, reveal * 5);
-    if (outer > 34) {
-      gfx->drawArc(160, 80, outer, 35, 275, 359, cyan);
-      gfx->drawArc(160, 80, outer, 35, 0, 19, cyan);
-      gfx->drawArc(160, 80, outer, 35, 35, 139, pink);
-      gfx->drawArc(160, 80, outer, 35, 155, 259, purple);
-    }
-    gfx->fillCircle(160, 80, min(25, reveal * 2 + 1), cyanDark);
-    gfx->fillCircle(160, 80, min(17, reveal + 5), cyan);
+    spans = ICON_LAUNCH_CHROME; count = sizeof(ICON_LAUNCH_CHROME) / sizeof(AppIconSpan);
+    label = "CHROME";
   } else if (name == "launch_spotify") {
-    // Every element shares the same center so the badge stays optically level.
-    gfx->fillCircle(160, 80, min(54, reveal * 5), purple);
-    for (int i = 0; i < 3; ++i) {
-      const int y = 63 + i * 18;
-      const int radius = 40 - i * 5;
-      gfx->drawArc(160, y, radius, radius - 6, 210, 330, cyan);
-    }
-    gfx->fillRect(155, 143, 10, 7, pink);
+    spans = ICON_LAUNCH_SPOTIFY; count = sizeof(ICON_LAUNCH_SPOTIFY) / sizeof(AppIconSpan);
+    label = "SPOTIFY";
   } else if (name == "launch_discord") {
-    // Rounded chat/controller silhouette with cyan eyes and pink ear caps.
-    gfx->fillRoundRect(105, 48, 110, 76, 24, purple);
-    gfx->fillTriangle(105, 94, 92, 126, 124, 111, purple);
-    gfx->fillTriangle(215, 94, 228, 126, 196, 111, purple);
-    gfx->fillRect(92, 64, 12, 42, pink);
-    gfx->fillRect(216, 64, 12, 42, pink);
-    pixelDisc(137, 78, 9, cyan);
-    pixelDisc(183, 78, 9, cyan);
-    gfx->drawArc(160, 83, 31, 25, 18, 162, cyan);
-  } else {
-    drawSmile(MOUTH_X, MOUTH_Y, MOUTH_SIZE, pink);
+    spans = ICON_LAUNCH_DISCORD; count = sizeof(ICON_LAUNCH_DISCORD) / sizeof(AppIconSpan);
+    label = "DISCORD";
   }
+  const int rows = min(56, static_cast<int>((millis() - stateChangedAt) / 6) + 1);
+  for (size_t i = 0; i < count; ++i) {
+    AppIconSpan span;
+    memcpy_P(&span, spans + i, sizeof(span));
+    if (span.y < rows)
+      gfx->fillRect(104 + span.x * 2, 24 + span.y * 2, span.width * 2, 2,
+                    APP_ICON_PALETTE[span.color]);
+  }
+  drawCenteredText(label, 148, 1, cyan);
 }
 
 // Shared presence layer: move the expression as one unit so glasses, tusks,
@@ -934,7 +921,7 @@ void drawFace() {
   if (unreadNotifications > 0) drawNotificationBadge();
   if (!linked) gfx->fillCircle(308, 12, 3, purple);
   if (frameCanvas && gfx == frameCanvas) {
-    applyColorTreatment();
+    if (!activeState.startsWith("launch_")) applyColorTreatment();
     frameCanvas->flush();
   }
 }

@@ -2,6 +2,16 @@
 
 Current build: **2.7.0**
 
+The app splashes use shared pixel artwork for Chrome, Spotify, and Discord,
+with their recognizable colors, crisp edges, and centered labels.
+
+For background controls, open the Windows tray overflow (**^**) and right-click
+the Lil-Bot face. Choose **Open preview**, **Pause / resume**, **Restart Lil-Bot**,
+or **Quit Lil-Bot**. The regular launcher now starts this tray supervisor.
+The Lab also has a **Quit Lil-Bot** button. Double-click `stop_lilbot.bat` to
+stop this installation without opening Task Manager. The flash launcher calls
+the same stop helper before taking the USB connection.
+
 The Christmas pack includes **Christmas Cozy**, **Christmas Music**, and a
 **Christmas Countdown** in the Animation Lab. Cyan eyes and a pink smile are
 joined by a pixel Santa hat, a striped scarf, and falling snow. Music keeps

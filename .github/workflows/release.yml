@@ -34,8 +34,9 @@ jobs:
       - name: Build ESP32 firmware
         shell: bash
         run: |
-          python -m pip install platformio pillow
+          python -m pip install platformio pillow psutil
           python tools/generate_face_assets.py
+          python tools/generate_app_icons.py --check
           platformio run --project-dir firmware
           cp firmware/.pio/build/lilygo-t-display-s3-touch/firmware.bin firmware/lilbot-firmware.bin
       - name: Check companion and Animation Lab
@@ -46,7 +47,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p release/LilBot
-          cp VERSION companion.py companion_config.json display-preview.html requirements.txt start_lilbot.bat update_flash_start_lilbot.bat github_updater.py check_for_updates.py check_for_updates.bat README.md ENCLOSURE_NOTES.md GITHUB_UPDATES.md PROTOCOL.md BACKGROUND_SETUP.md HALLOWEEN_UPDATE.md background_lilbot.pyw start_background.vbs install_background.bat install_background.ps1 release/LilBot/
+          cp VERSION companion.py companion_config.json display-preview.html requirements.txt start_lilbot.bat update_flash_start_lilbot.bat github_updater.py check_for_updates.py check_for_updates.bat README.md ENCLOSURE_NOTES.md GITHUB_UPDATES.md PROTOCOL.md BACKGROUND_SETUP.md HALLOWEEN_UPDATE.md background_lilbot.pyw stop_lilbot.py stop_lilbot.bat start_background.vbs install_background.bat install_background.ps1 release/LilBot/
           mkdir -p release/LilBot/.vscode
           cp .vscode/tasks.json release/LilBot/.vscode/
           mkdir -p release/LilBot/firmware

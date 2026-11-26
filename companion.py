@@ -966,6 +966,22 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self) -> None:
         route = urlparse(self.path).path
+        if route == "/api/shutdown":
+            if self.client_address[0] not in {"127.0.0.1", "::1"} or self.headers.get("X-LilBot-Control") != "1":
+                self.send_json({"error": "local control required"}, HTTPStatus.FORBIDDEN)
+                return
+            # Tell the supervisor to exit too, otherwise it would restart us.
+            if os.name == "nt":
+                ctypes.windll.kernel32.OpenEventW.restype = ctypes.c_void_p
+                ctypes.windll.kernel32.SetEvent.argtypes = [ctypes.c_void_p]
+                ctypes.windll.kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+                handle = ctypes.windll.kernel32.OpenEventW(2, False, "Local\\LilBotQuit")
+                if handle:
+                    ctypes.windll.kernel32.SetEvent(handle)
+                    ctypes.windll.kernel32.CloseHandle(handle)
+            self.send_json({"ok": True, "message": "Lil-Bot is stopping"})
+            threading.Thread(target=self.server.shutdown, daemon=True).start()
+            return
         if route == "/api/notification":
             count = RUNTIME.add_notification()
             with RUNTIME.lock:
@@ -1053,6 +1069,7 @@ def main() -> int:
         print("\nStopping Lil Bot companion.")
     finally:
         stop.set()
+        serial_worker.join(timeout=3)
         server.server_close()
     return 0
 

@@ -14,6 +14,9 @@ echo.
 py github_updater.py
 if errorlevel 1 goto :failed
 
+py stop_lilbot.py
+if errorlevel 1 goto :failed
+
 set "PIO=%USERPROFILE%\.platformio\penv\Scripts\platformio.exe"
 echo.
 echo Building and flashing the connected Lil Bot display...
