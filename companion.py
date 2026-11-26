@@ -51,6 +51,7 @@ VALID_STATES = {"idle", "typing", "browsing", "browsing_fast", "music", "gaming"
 REACTION_PRIORITY = {"idle": 0, "application": 30, "browsing": 40, "typing": 50, "gaming": 60, "director": 65, "sleep": 70, "volume": 80, "after": 90, "manual": 100}
 VALID_STATES.update({"halloween_happy", "halloween_music", "halloween_spider", "halloween_countdown"})
 VALID_STATES.add("autumn_cozy")
+VALID_STATES.update({"christmas_cozy", "christmas_music", "christmas_countdown"})
 
 
 def halloween_enabled(config, today=None):
@@ -63,6 +64,39 @@ def autumn_enabled(config, today=None):
     today = today or date.today()
     mode = config.get("seasonal", {}).get("autumn", "auto")
     return mode == "on" or (mode == "auto" and today.month == 11)
+
+
+def christmas_enabled(config, today=None):
+    today = today or date.today()
+    mode = config.get("seasonal", {}).get("christmas", "auto")
+    return mode == "on" or (mode == "auto" and (today.month == 12 or
+                                               (today.month == 11 and today.day >= 26)))
+
+
+def christmas_countdown(today=None):
+    """Use the PC's local calendar and keep late December festive."""
+    today = today or date.today()
+    if today.month == 12 and today.day == 25:
+        return {"text": "MERRY", "label": "CHRISTMAS!"}
+    if today.month == 12 and today.day > 25:
+        return {"text": "HOLIDAY", "label": "CHEER!"}
+    target = date(today.year, 12, 25)
+    days = (target - today).days
+    return {"text": f"{days} DAY" if days == 1 else f"{days} DAYS",
+            "label": "UNTIL CHRISTMAS"}
+
+
+def seasonal_cameo(config, index):
+    """One seasonal cameo every third idle turn, with a deterministic rotation."""
+    if index % 3:
+        return None
+    if christmas_enabled(config):
+        return ("christmas_cozy", "christmas_countdown")[index // 3 % 2]
+    if halloween_enabled(config):
+        return ("halloween_happy", "halloween_spider", "halloween_countdown")[index // 3 % 3]
+    if autumn_enabled(config):
+        return "autumn_cozy"
+    return None
 
 
 def halloween_days(today=None):
@@ -240,6 +274,7 @@ class Runtime:
                     "last_seen": self.device_last_seen,
                 },
                 "personality": APP_CONFIG.get("personality", "shy-curious-helper"),
+                "seasonal": {"christmas_countdown": christmas_countdown()},
                 "reaction": {"source": self.source, "priority": self.priority},
                 "modifiers": {
                     "music_bob": self.music_playing,
@@ -259,7 +294,7 @@ class Runtime:
     def display_frame(self) -> dict:
         snapshot = self.snapshot()
         snapshot["state"] = snapshot["screen_state"]
-        if snapshot["reaction"]["source"] == "sleep" or self.state == "sleep":
+        if snapshot["reaction"]["source"] == "sleep" or self.state in {"sleep", "christmas_countdown"}:
             snapshot["modifiers"]["music_bob"] = False
         keys = ("protocol_version", "sequence", "state", "display", "modifiers", "volume_level", "volume_muted", "unread_notifications", "ambient")
         return {key: snapshot[key] for key in keys}
@@ -278,6 +313,9 @@ class Runtime:
             clock = "HALLOWEEN!" if halloween_days() == 0 else f"{halloween_days()} DAYS"
         temperature = "--" if frame["ambient"]["temperature"] is None else str(round(float(frame["ambient"]["temperature"])))
         location = str(frame["ambient"]["location"] or "LOCAL").replace("|", "/")[:24]
+        if frame["state"] == "christmas_countdown":
+            countdown = christmas_countdown()
+            clock, location = countdown["text"], countdown["label"]
         return "LILBOT|1|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}\n".format(
             frame["sequence"],
             frame["state"],
@@ -709,15 +747,11 @@ def detection_loop(config: dict, stop: threading.Event) -> None:
                     if RUNTIME.idle_cameo_index and RUNTIME.idle_cameo_index % len(cameo_states) == 0:
                         random.shuffle(cameo_states)
                     cameo = cameo_states[RUNTIME.idle_cameo_index % len(cameo_states)]
-                    if halloween_enabled(config) and RUNTIME.idle_cameo_index % 3 == 0:
-                        seasonal = ["halloween_happy", "halloween_spider", "halloween_countdown"]
-                        cameo = seasonal[(RUNTIME.idle_cameo_index // 3) % 3]
-                    elif RUNTIME.idle_cameo_index % 3 == 0 and autumn_enabled(config):
-                        cameo = "autumn_cozy"
+                    cameo = seasonal_cameo(config, RUNTIME.idle_cameo_index) or cameo
                     if cameo == "weather" and RUNTIME.temperature is None:
                         cameo = "helper"
                     RUNTIME.idle_cameo_index += 1
-                    duration = float(config.get("ambient_card_duration_seconds", 6)) if cameo in {"time", "weather"} else cameo_duration
+                    duration = float(config.get("ambient_card_duration_seconds", 6)) if cameo in {"time", "weather", "christmas_countdown"} else cameo_duration
                     RUNTIME.director_state = cameo
                     RUNTIME.director_until = now + duration
                     RUNTIME.director_reason = f"shy-curious idle cameo: {cameo}"
@@ -734,8 +768,11 @@ def detection_loop(config: dict, stop: threading.Event) -> None:
             with RUNTIME.lock:
                 if not manual and now >= RUNTIME.next_idle_cameo:
                     RUNTIME.next_idle_cameo = now + random.uniform(cameo_min, cameo_max)
-        if state == "music" and halloween_enabled(config):
-            state = "halloween_music"
+        if state == "music":
+            if christmas_enabled(config):
+                state = "christmas_music"
+            elif halloween_enabled(config):
+                state = "halloween_music"
         RUNTIME.set_state(state, reason, source, priority)
         if state == "typing" and not typing_started:
             typing_started = now

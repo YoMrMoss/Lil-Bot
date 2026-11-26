@@ -1,6 +1,9 @@
 name: Build Lil Bot release
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - main
@@ -35,6 +38,10 @@ jobs:
           python tools/generate_face_assets.py
           platformio run --project-dir firmware
           cp firmware/.pio/build/lilygo-t-display-s3-touch/firmware.bin firmware/lilbot-firmware.bin
+      - name: Check companion and Animation Lab
+        run: |
+          python -m unittest
+          node test_presence.js
       - name: Package Windows companion
         shell: bash
         run: |
@@ -53,6 +60,7 @@ jobs:
             sha256sum lilbot-firmware.bin >> SHA256SUMS.txt
           fi
       - name: Publish GitHub release
+        if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}

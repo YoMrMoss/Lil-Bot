@@ -2,6 +2,21 @@
 
 Current build: **2.7.0**
 
+The Christmas pack includes **Christmas Cozy**, **Christmas Music**, and a
+**Christmas Countdown** in the Animation Lab. Cyan eyes and a pink smile are
+joined by a pixel Santa hat, a striped scarf, and falling snow. Music keeps
+roaming notes and gentle bobbing. Snow slows during quiet hours.
+
+The pack runs automatically from **November 26 through December 31**, taking
+priority over the other seasonal packs. Every third idle cameo alternates between
+Cozy and a six-second countdown card. Volume, touch, typing, and gaming can
+interrupt idle cameos. The PC's local date determines the countdown, including
+a Christmas Day greeting and holiday cheer from December 26 onward. With the
+PC companion disconnected, the board uses its existing offline idle behavior.
+
+Set `seasonal.christmas` in `companion_config.json` to `auto`, `on`, or `off`.
+Existing saved configurations enable the automatic holiday pack by default.
+
 In November, **Autumn Cozy** occasionally joins the idle rotation with pupil-free
 cyan arches, a pixel scarf, and drifting leaves. Quiet hours slow the leaves.
 Select **Autumn Cozy** in the Animation Lab to try it on demand. Set

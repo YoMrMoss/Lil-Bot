@@ -590,6 +590,53 @@ void drawAutumnFace(int yOffset, bool quiet) {
   }
 }
 
+void drawChristmasSnow(bool quiet) {
+  const uint32_t step = (millis() - stateChangedAt) / (quiet ? 180 : 85);
+  for (int i = 0; i < 6; ++i) {
+    const int phase = (step + i * 23) % 146;
+    const int sway = phase % 16;
+    const int x = (i % 2 ? 288 : 18) + (sway < 8 ? sway : 16 - sway);
+    const int y = 8 + phase;
+    gfx->fillRect(x - 3, y, 9, 3, cyan);
+    gfx->fillRect(x, y - 3, 3, 9, cyan);
+  }
+}
+
+void drawChristmasFace(int yOffset, bool quiet) {
+  const uint16_t red = gfx->color565(255, 69, 96);
+  const uint16_t white = gfx->color565(231, 252, 255);
+  const uint16_t gold = gfx->color565(255, 206, 85);
+  drawChristmasSnow(quiet);
+  if (activeState == "christmas_countdown") {
+    drawCenteredText("LIL-BOT'S HOLIDAY COUNTDOWN", 20, 1, gold);
+    drawCenteredText(clockText, 58, 4, cyan);
+    drawCenteredText(locationText, 105, 2, pink);
+    // Wrapped present beneath the countdown, kept clear of the text.
+    gfx->fillRect(142, 136, 36, 22, red);
+    gfx->fillRect(139, 132, 42, 6, red);
+    gfx->fillRect(157, 132, 6, 26, gold);
+    gfx->fillRect(148, 126, 9, 6, gold);
+    gfx->fillRect(163, 126, 9, 6, gold);
+    return;
+  }
+  drawOrcDMusicEyes(yOffset);
+  drawSmile(MOUTH_X, MOUTH_Y + yOffset - 15, MOUTH_SIZE, pink);
+  // Stepped hat sits above the eyes; the pom-pom folds to the right.
+  gfx->fillRect(125, 11 + yOffset, 32, 7, red);
+  gfx->fillRect(117, 18 + yOffset, 48, 8, red);
+  gfx->fillRect(109, 26 + yOffset, 64, 8, red);
+  gfx->fillRect(157, 14 + yOffset, 20, 7, red);
+  gfx->fillRect(170, 21 + yOffset, 7, 9, red);
+  gfx->fillRect(169, 27 + yOffset, 13, 9, white);
+  gfx->fillRect(105, 34 + yOffset, 72, 7, white);
+  gfx->fillRect(113, 139 + yOffset, 94, 9, red);
+  gfx->fillRect(119, 148 + yOffset, 82, 4, red);
+  gfx->fillRect(185, 148 + yOffset, 16, 12, red);
+  gfx->fillRect(128, 139 + yOffset, 5, 9, white);
+  gfx->fillRect(145, 139 + yOffset, 5, 9, white);
+  gfx->fillRect(188, 155 + yOffset, 10, 3, white);
+}
+
 void drawRageFace(int yOffset) {
   // Rage B: familiar wide eyes plus a playful pulsing comic anger vessel.
   const int phase = (millis() / 180) % 4;
@@ -693,7 +740,7 @@ void drawLaunchGlyph(const String &name) {
 // and emoticon hands never detach. Status overlays are drawn afterward.
 struct PresenceMotion { int x; int y; };
 PresenceMotion presenceMotion(uint32_t now, const String &state, bool quiet, int hint) {
-  if (state == "time" || state == "weather" || state == "halloween_countdown" ||
+  if (state == "time" || state == "weather" || state == "halloween_countdown" || state == "christmas_countdown" ||
       state.startsWith("launch_")) return {0, 0};
   const int breath = static_cast<int>(roundf(sinf((now % 6400) * 6.2831853f / 6400) * (quiet ? 1 : 2)));
   if (quiet || state == "sleep") return {0, breath};
@@ -783,7 +830,9 @@ void drawFace() {
   lastWink = winkNow;
   gfx->fillScreen(BLACK);
 
-  if (activeState.startsWith("halloween_")) {
+  if (activeState.startsWith("christmas_")) {
+    drawChristmasFace(yOffset, quietMotion);
+  } else if (activeState.startsWith("halloween_")) {
     drawHalloweenFace(yOffset);
   } else if (activeState == "autumn_cozy") {
     drawAutumnFace(yOffset, quietMotion);
@@ -878,6 +927,8 @@ void drawFace() {
   shiftExpression(presence.x, presence.y);
   if (activeState == "volume") drawVolumeStatus();
   if (activeState == "loading" || activeState == "reconnect") drawLoadingStatus();
+  if (activeState == "christmas_music")
+    drawMusicNotes(true);
   if (activeState == "music" || activeState == "halloween_music")
     drawMusicNotes(activeState == "halloween_music");
   if (unreadNotifications > 0) drawNotificationBadge();
