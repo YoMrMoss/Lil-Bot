@@ -3,6 +3,7 @@
 #include <Arduino_GFX_Library.h>
 #include <Wire.h>
 #include "face_assets.h"
+#include "app_icons.h"
 
 namespace {
 constexpr uint8_t POWER_PIN = 15;
@@ -566,6 +567,77 @@ void drawHalloweenFace(int yOffset) {
   }
 }
 
+void drawAutumnFace(int yOffset, bool quiet) {
+  drawOrcDMusicEyes(yOffset);
+  drawSmile(MOUTH_X, MOUTH_Y + yOffset - 15, MOUTH_SIZE, pink);
+  // A stepped scarf, with a folded end and two stitches.
+  gfx->fillRect(113, 139 + yOffset, 94, 9, orange);
+  gfx->fillRect(119, 148 + yOffset, 82, 4, orange);
+  gfx->fillRect(185, 148 + yOffset, 16, 12, orange);
+  gfx->fillRect(188, 155 + yOffset, 3, 3, pink);
+  gfx->fillRect(195, 155 + yOffset, 3, 3, pink);
+  const uint32_t step = (millis() - stateChangedAt) / (quiet ? 150 : 65);
+  for (int i = 0; i < 3; ++i) {
+    const int phase = (step + i * 39) % 118;
+    const int sway = phase % 24;
+    const int x = (i == 0 ? 30 : i == 1 ? 284 : 160) + (sway < 12 ? sway : 24 - sway);
+    const int y = i == 2 ? 10 + phase % 29 : 12 + phase;
+    const int tilt = (phase / 12) % 2 ? 1 : -1;
+    const uint16_t color = i == 1 ? pink : orange;
+    gfx->fillRect(x + tilt * 3, y, 6, 3, color);
+    gfx->fillRect(x, y + 3, 9, 6, color);
+    gfx->fillRect(x - tilt * 3, y + 9, 6, 3, color);
+    gfx->fillRect(x - tilt * 5, y + 12, 3, 3, purple);
+  }
+}
+
+void drawChristmasSnow(bool quiet) {
+  const uint32_t step = (millis() - stateChangedAt) / (quiet ? 180 : 85);
+  for (int i = 0; i < 6; ++i) {
+    const int phase = (step + i * 23) % 146;
+    const int sway = phase % 16;
+    const int x = (i % 2 ? 288 : 18) + (sway < 8 ? sway : 16 - sway);
+    const int y = 8 + phase;
+    gfx->fillRect(x - 3, y, 9, 3, cyan);
+    gfx->fillRect(x, y - 3, 3, 9, cyan);
+  }
+}
+
+void drawChristmasFace(int yOffset, bool quiet) {
+  const uint16_t red = gfx->color565(255, 69, 96);
+  const uint16_t white = gfx->color565(231, 252, 255);
+  const uint16_t gold = gfx->color565(255, 206, 85);
+  drawChristmasSnow(quiet);
+  if (activeState == "christmas_countdown") {
+    drawCenteredText("LIL-BOT'S HOLIDAY COUNTDOWN", 20, 1, gold);
+    drawCenteredText(clockText, 58, 4, cyan);
+    drawCenteredText(locationText, 105, 2, pink);
+    // Wrapped present beneath the countdown, kept clear of the text.
+    gfx->fillRect(142, 136, 36, 22, red);
+    gfx->fillRect(139, 132, 42, 6, red);
+    gfx->fillRect(157, 132, 6, 26, gold);
+    gfx->fillRect(148, 126, 9, 6, gold);
+    gfx->fillRect(163, 126, 9, 6, gold);
+    return;
+  }
+  drawOrcDMusicEyes(yOffset);
+  drawSmile(MOUTH_X, MOUTH_Y + yOffset - 15, MOUTH_SIZE, pink);
+  // Stepped hat sits above the eyes; the pom-pom folds to the right.
+  gfx->fillRect(125, 11 + yOffset, 32, 7, red);
+  gfx->fillRect(117, 18 + yOffset, 48, 8, red);
+  gfx->fillRect(109, 26 + yOffset, 64, 8, red);
+  gfx->fillRect(157, 14 + yOffset, 20, 7, red);
+  gfx->fillRect(170, 21 + yOffset, 7, 9, red);
+  gfx->fillRect(169, 27 + yOffset, 13, 9, white);
+  gfx->fillRect(105, 34 + yOffset, 72, 7, white);
+  gfx->fillRect(113, 139 + yOffset, 94, 9, red);
+  gfx->fillRect(119, 148 + yOffset, 82, 4, red);
+  gfx->fillRect(185, 148 + yOffset, 16, 12, red);
+  gfx->fillRect(128, 139 + yOffset, 5, 9, white);
+  gfx->fillRect(145, 139 + yOffset, 5, 9, white);
+  gfx->fillRect(188, 155 + yOffset, 10, 3, white);
+}
+
 void drawRageFace(int yOffset) {
   // Rage B: familiar wide eyes plus a playful pulsing comic anger vessel.
   const int phase = (millis() / 180) % 4;
@@ -627,49 +699,35 @@ void drawOrcFace(int yOffset, const String &mood) {
 }
 
 void drawLaunchGlyph(const String &name) {
-  const uint32_t age = millis() - stateChangedAt;
-  const int reveal = constrain(static_cast<int>(age / 28), 1, 12);
+  const AppIconSpan *spans = nullptr;
+  size_t count = 0;
+  String label;
   if (name == "launch_chrome") {
-    // A genuinely round three-segment browser mark; no triangular reveal that
-    // reads as a square on the physical LCD.
-    const int outer = min(56, reveal * 5);
-    if (outer > 34) {
-      gfx->drawArc(160, 80, outer, 35, 275, 359, cyan);
-      gfx->drawArc(160, 80, outer, 35, 0, 19, cyan);
-      gfx->drawArc(160, 80, outer, 35, 35, 139, pink);
-      gfx->drawArc(160, 80, outer, 35, 155, 259, purple);
-    }
-    gfx->fillCircle(160, 80, min(25, reveal * 2 + 1), cyanDark);
-    gfx->fillCircle(160, 80, min(17, reveal + 5), cyan);
+    spans = ICON_LAUNCH_CHROME; count = sizeof(ICON_LAUNCH_CHROME) / sizeof(AppIconSpan);
+    label = "CHROME";
   } else if (name == "launch_spotify") {
-    // Every element shares the same center so the badge stays optically level.
-    gfx->fillCircle(160, 80, min(54, reveal * 5), purple);
-    for (int i = 0; i < 3; ++i) {
-      const int y = 63 + i * 18;
-      const int radius = 40 - i * 5;
-      gfx->drawArc(160, y, radius, radius - 6, 210, 330, cyan);
-    }
-    gfx->fillRect(155, 143, 10, 7, pink);
+    spans = ICON_LAUNCH_SPOTIFY; count = sizeof(ICON_LAUNCH_SPOTIFY) / sizeof(AppIconSpan);
+    label = "SPOTIFY";
   } else if (name == "launch_discord") {
-    // Rounded chat/controller silhouette with cyan eyes and pink ear caps.
-    gfx->fillRoundRect(105, 48, 110, 76, 24, purple);
-    gfx->fillTriangle(105, 94, 92, 126, 124, 111, purple);
-    gfx->fillTriangle(215, 94, 228, 126, 196, 111, purple);
-    gfx->fillRect(92, 64, 12, 42, pink);
-    gfx->fillRect(216, 64, 12, 42, pink);
-    pixelDisc(137, 78, 9, cyan);
-    pixelDisc(183, 78, 9, cyan);
-    gfx->drawArc(160, 83, 31, 25, 18, 162, cyan);
-  } else {
-    drawSmile(MOUTH_X, MOUTH_Y, MOUTH_SIZE, pink);
+    spans = ICON_LAUNCH_DISCORD; count = sizeof(ICON_LAUNCH_DISCORD) / sizeof(AppIconSpan);
+    label = "DISCORD";
   }
+  const int rows = min(56, static_cast<int>((millis() - stateChangedAt) / 6) + 1);
+  for (size_t i = 0; i < count; ++i) {
+    AppIconSpan span;
+    memcpy_P(&span, spans + i, sizeof(span));
+    if (span.y < rows)
+      gfx->fillRect(104 + span.x * 2, 24 + span.y * 2, span.width * 2, 2,
+                    APP_ICON_PALETTE[span.color]);
+  }
+  drawCenteredText(label, 148, 1, cyan);
 }
 
 // Shared presence layer: move the expression as one unit so glasses, tusks,
 // and emoticon hands never detach. Status overlays are drawn afterward.
 struct PresenceMotion { int x; int y; };
 PresenceMotion presenceMotion(uint32_t now, const String &state, bool quiet, int hint) {
-  if (state == "time" || state == "weather" || state == "halloween_countdown" ||
+  if (state == "time" || state == "weather" || state == "halloween_countdown" || state == "christmas_countdown" ||
       state.startsWith("launch_")) return {0, 0};
   const int breath = static_cast<int>(roundf(sinf((now % 6400) * 6.2831853f / 6400) * (quiet ? 1 : 2)));
   if (quiet || state == "sleep") return {0, breath};
@@ -759,8 +817,12 @@ void drawFace() {
   lastWink = winkNow;
   gfx->fillScreen(BLACK);
 
-  if (activeState.startsWith("halloween_")) {
+  if (activeState.startsWith("christmas_")) {
+    drawChristmasFace(yOffset, quietMotion);
+  } else if (activeState.startsWith("halloween_")) {
     drawHalloweenFace(yOffset);
+  } else if (activeState == "autumn_cozy") {
+    drawAutumnFace(yOffset, quietMotion);
   } else if (activeState == "time" || activeState == "weather") {
     drawInformationCard(activeState == "weather");
   } else if (activeState.startsWith("launch_")) {
@@ -852,12 +914,14 @@ void drawFace() {
   shiftExpression(presence.x, presence.y);
   if (activeState == "volume") drawVolumeStatus();
   if (activeState == "loading" || activeState == "reconnect") drawLoadingStatus();
+  if (activeState == "christmas_music")
+    drawMusicNotes(true);
   if (activeState == "music" || activeState == "halloween_music")
     drawMusicNotes(activeState == "halloween_music");
   if (unreadNotifications > 0) drawNotificationBadge();
   if (!linked) gfx->fillCircle(308, 12, 3, purple);
   if (frameCanvas && gfx == frameCanvas) {
-    applyColorTreatment();
+    if (!activeState.startsWith("launch_")) applyColorTreatment();
     frameCanvas->flush();
   }
 }

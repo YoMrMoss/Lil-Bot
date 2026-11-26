@@ -32,3 +32,15 @@ Windows Run → `shell:startup`, then quit from the tray.
 
 Halloween B and D, the pixel spider, and countdown are now implemented in
 the prepared 2.6.0 update. See HALLOWEEN_UPDATE.md for settings and testing.
+
+## Stopping and restarting
+
+The regular launcher now uses the tray supervisor too. Open Windows' tray
+overflow (**^**), right-click the little face, and choose **Restart Lil-Bot** or
+**Quit Lil-Bot**. **Pause / resume** temporarily stops and resumes the companion.
+Quit stays stopped until you launch Lil-Bot again or sign in with autostart enabled.
+
+You can also use **Quit Lil-Bot** in the Animation Lab or double-click
+`stop_lilbot.bat` in the installation folder. The stop helper supports older
+background companions by matching their script paths to this installation.
+The update-and-flash launcher calls it automatically before using the USB port.

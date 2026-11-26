@@ -24,7 +24,22 @@ Release. Once firmware development begins, the same release can also contain
 - **Optional future:** Wi-Fi over-the-air firmware updates. USB should remain the
   recovery path if an OTA update is interrupted.
 
-Unattended background flashing remains disabled because the Windows PC must
-have exclusive access to COM5 and the board must remain powered. The one-click
-task automates the complete process while keeping the upload visible and
-recoverable.
+Before flashing, quit Lil Bot from the tray and close Serial Monitor so the
+updater has exclusive access to the display. PlatformIO detects the upload
+port each run.
+
+If esptool says the detected COM port does not exist, enter upload mode before
+retrying. With the board plugged in, hold **BOOT**, tap **RST**, then release
+**BOOT**. In Windows Device Manager, look under **Ports (COM & LPT)** for the
+port that appeared. From Command Prompt in the Lil Bot folder, run these two
+commands with that port in place of `COM7`.
+
+```bat
+set "PLATFORMIO_UPLOAD_PORT=COM7"
+update_flash_start_lilbot.bat
+```
+
+The override applies only to this Command Prompt and its child processes.
+Clear it with `set "PLATFORMIO_UPLOAD_PORT="` once the upload finishes. If the
+display stays in upload mode after a successful flash, tap **RST** to start
+the firmware.

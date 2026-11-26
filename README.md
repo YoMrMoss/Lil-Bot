@@ -1,8 +1,39 @@
 # Lil Bot
 
-Current build: **2.6.0**
+Current build: **2.7.0**
 
-Prepared Halloween and quiet-background update: see [HALLOWEEN_UPDATE.md](HALLOWEEN_UPDATE.md) and [BACKGROUND_SETUP.md](BACKGROUND_SETUP.md).
+The app splashes use shared pixel artwork for Chrome, Spotify, and Discord,
+with their recognizable colors, crisp edges, and centered labels.
+
+For background controls, open the Windows tray overflow (**^**) and right-click
+the Lil-Bot face. Choose **Open preview**, **Pause / resume**, **Restart Lil-Bot**,
+or **Quit Lil-Bot**. The regular launcher now starts this tray supervisor.
+The Lab also has a **Quit Lil-Bot** button. Double-click `stop_lilbot.bat` to
+stop this installation without opening Task Manager. The flash launcher calls
+the same stop helper before taking the USB connection.
+
+The Christmas pack includes **Christmas Cozy**, **Christmas Music**, and a
+**Christmas Countdown** in the Animation Lab. Cyan eyes and a pink smile are
+joined by a pixel Santa hat, a striped scarf, and falling snow. Music keeps
+roaming notes and gentle bobbing. Snow slows during quiet hours.
+
+The pack runs automatically from **November 26 through December 31**, taking
+priority over the other seasonal packs. Every third idle cameo alternates between
+Cozy and a six-second countdown card. Volume, touch, typing, and gaming can
+interrupt idle cameos. The PC's local date determines the countdown, including
+a Christmas Day greeting and holiday cheer from December 26 onward. With the
+PC companion disconnected, the board uses its existing offline idle behavior.
+
+Set `seasonal.christmas` in `companion_config.json` to `auto`, `on`, or `off`.
+Existing saved configurations enable the automatic holiday pack by default.
+
+In November, **Autumn Cozy** occasionally joins the idle rotation with pupil-free
+cyan arches, a pixel scarf, and drifting leaves. Quiet hours slow the leaves.
+Select **Autumn Cozy** in the Animation Lab to try it on demand. Set
+`seasonal.autumn` in `companion_config.json` to `auto` (the default), `off`,
+or `on`. Halloween keeps priority if both are enabled.
+
+Halloween and quiet-background setup: see [HALLOWEEN_UPDATE.md](HALLOWEEN_UPDATE.md) and [BACKGROUND_SETUP.md](BACKGROUND_SETUP.md).
 
 Build 2.5 makes the approved Orc D arches Lil-Bot's dedicated music eyes. The
 eyes gently lift with the beat, the familiar filled pixel smile stays centered,
@@ -94,7 +125,7 @@ as though it were the ESP32 display.
 5. Use the state buttons to simulate events that are not detected yet.
 6. Close the command window or press `Ctrl+C` to stop it.
 
-The current simulator is labeled **BUILD 2.6.0** at the top. When updating, close
+The current simulator is labeled **BUILD 2.7.0** at the top. When updating, close
 the previous Lil Bot command window and extract the new ZIP into a new folder
 instead of merging it into an older copy. If the screen still has side grips or
 a USB tab, an older preview is running.

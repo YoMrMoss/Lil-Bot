@@ -31,7 +31,7 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "companion_config.json"
-BUILD_VERSION = "2.6.2"
+BUILD_VERSION = "2.7.0"
 STARTED_AT = time.monotonic()
 HEALTH = {"reconnects": 0, "last_error": "", "last_write": None}
 
@@ -50,12 +50,53 @@ PROTOCOL_VERSION = 1
 VALID_STATES = {"idle", "typing", "browsing", "browsing_fast", "music", "gaming", "orc", "orc_happy", "orc_focus", "orc_rage", "cat", "helper", "showoff", "crying", "nervous", "rage", "notification", "loading", "error", "sleep", "volume", "startup", "reconnect", "time", "weather", "launch_chrome", "launch_spotify", "launch_discord"}
 REACTION_PRIORITY = {"idle": 0, "application": 30, "browsing": 40, "typing": 50, "gaming": 60, "director": 65, "sleep": 70, "volume": 80, "after": 90, "manual": 100}
 VALID_STATES.update({"halloween_happy", "halloween_music", "halloween_spider", "halloween_countdown"})
+VALID_STATES.add("autumn_cozy")
+VALID_STATES.update({"christmas_cozy", "christmas_music", "christmas_countdown"})
 
 
 def halloween_enabled(config, today=None):
     today = today or date.today()
     mode = config.get("seasonal", {}).get("halloween", "auto")
     return mode == "on" or (mode == "auto" and today.month == 10)
+
+
+def autumn_enabled(config, today=None):
+    today = today or date.today()
+    mode = config.get("seasonal", {}).get("autumn", "auto")
+    return mode == "on" or (mode == "auto" and today.month == 11)
+
+
+def christmas_enabled(config, today=None):
+    today = today or date.today()
+    mode = config.get("seasonal", {}).get("christmas", "auto")
+    return mode == "on" or (mode == "auto" and (today.month == 12 or
+                                               (today.month == 11 and today.day >= 26)))
+
+
+def christmas_countdown(today=None):
+    """Use the PC's local calendar and keep late December festive."""
+    today = today or date.today()
+    if today.month == 12 and today.day == 25:
+        return {"text": "MERRY", "label": "CHRISTMAS!"}
+    if today.month == 12 and today.day > 25:
+        return {"text": "HOLIDAY", "label": "CHEER!"}
+    target = date(today.year, 12, 25)
+    days = (target - today).days
+    return {"text": f"{days} DAY" if days == 1 else f"{days} DAYS",
+            "label": "UNTIL CHRISTMAS"}
+
+
+def seasonal_cameo(config, index):
+    """One seasonal cameo every third idle turn, with a deterministic rotation."""
+    if index % 3:
+        return None
+    if christmas_enabled(config):
+        return ("christmas_cozy", "christmas_countdown")[index // 3 % 2]
+    if halloween_enabled(config):
+        return ("halloween_happy", "halloween_spider", "halloween_countdown")[index // 3 % 3]
+    if autumn_enabled(config):
+        return "autumn_cozy"
+    return None
 
 
 def halloween_days(today=None):
@@ -233,6 +274,7 @@ class Runtime:
                     "last_seen": self.device_last_seen,
                 },
                 "personality": APP_CONFIG.get("personality", "shy-curious-helper"),
+                "seasonal": {"christmas_countdown": christmas_countdown()},
                 "reaction": {"source": self.source, "priority": self.priority},
                 "modifiers": {
                     "music_bob": self.music_playing,
@@ -252,7 +294,7 @@ class Runtime:
     def display_frame(self) -> dict:
         snapshot = self.snapshot()
         snapshot["state"] = snapshot["screen_state"]
-        if snapshot["reaction"]["source"] == "sleep" or self.state == "sleep":
+        if snapshot["reaction"]["source"] == "sleep" or self.state in {"sleep", "christmas_countdown"}:
             snapshot["modifiers"]["music_bob"] = False
         keys = ("protocol_version", "sequence", "state", "display", "modifiers", "volume_level", "volume_muted", "unread_notifications", "ambient")
         return {key: snapshot[key] for key in keys}
@@ -271,6 +313,9 @@ class Runtime:
             clock = "HALLOWEEN!" if halloween_days() == 0 else f"{halloween_days()} DAYS"
         temperature = "--" if frame["ambient"]["temperature"] is None else str(round(float(frame["ambient"]["temperature"])))
         location = str(frame["ambient"]["location"] or "LOCAL").replace("|", "/")[:24]
+        if frame["state"] == "christmas_countdown":
+            countdown = christmas_countdown()
+            clock, location = countdown["text"], countdown["label"]
         return "LILBOT|1|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}\n".format(
             frame["sequence"],
             frame["state"],
@@ -702,13 +747,11 @@ def detection_loop(config: dict, stop: threading.Event) -> None:
                     if RUNTIME.idle_cameo_index and RUNTIME.idle_cameo_index % len(cameo_states) == 0:
                         random.shuffle(cameo_states)
                     cameo = cameo_states[RUNTIME.idle_cameo_index % len(cameo_states)]
-                    if halloween_enabled(config) and RUNTIME.idle_cameo_index % 3 == 0:
-                        seasonal = ["halloween_happy", "halloween_spider", "halloween_countdown"]
-                        cameo = seasonal[(RUNTIME.idle_cameo_index // 3) % 3]
+                    cameo = seasonal_cameo(config, RUNTIME.idle_cameo_index) or cameo
                     if cameo == "weather" and RUNTIME.temperature is None:
                         cameo = "helper"
                     RUNTIME.idle_cameo_index += 1
-                    duration = float(config.get("ambient_card_duration_seconds", 6)) if cameo in {"time", "weather"} else cameo_duration
+                    duration = float(config.get("ambient_card_duration_seconds", 6)) if cameo in {"time", "weather", "christmas_countdown"} else cameo_duration
                     RUNTIME.director_state = cameo
                     RUNTIME.director_until = now + duration
                     RUNTIME.director_reason = f"shy-curious idle cameo: {cameo}"
@@ -725,8 +768,11 @@ def detection_loop(config: dict, stop: threading.Event) -> None:
             with RUNTIME.lock:
                 if not manual and now >= RUNTIME.next_idle_cameo:
                     RUNTIME.next_idle_cameo = now + random.uniform(cameo_min, cameo_max)
-        if state == "music" and halloween_enabled(config):
-            state = "halloween_music"
+        if state == "music":
+            if christmas_enabled(config):
+                state = "christmas_music"
+            elif halloween_enabled(config):
+                state = "halloween_music"
         RUNTIME.set_state(state, reason, source, priority)
         if state == "typing" and not typing_started:
             typing_started = now
@@ -802,10 +848,17 @@ def serial_bridge_loop(config: dict, stop: threading.Event) -> None:
     interval = max(0.1, float(serial_config.get("heartbeat_seconds", 0.5)))
     preferred = str(serial_config.get("port", "auto"))
     retry_delay = 1.0
+    last_attempted_port = ""
     while not stop.is_set():
         connection = None
         port = ""
-        for port in candidate_serial_ports(preferred):
+        ports = candidate_serial_ports(preferred)
+        # A port can open successfully even when another device owns the far end.
+        # Give the next candidate a turn after a failed handshake or lost link.
+        if last_attempted_port in ports:
+            start = ports.index(last_attempted_port) + 1
+            ports = ports[start:] + ports[:start]
+        for port in ports:
             try:
                 connection = serial.Serial()
                 connection.port = port
@@ -815,6 +868,7 @@ def serial_bridge_loop(config: dict, stop: threading.Event) -> None:
                 connection.dtr = False
                 connection.rts = False
                 connection.open()
+                last_attempted_port = port
                 break
             except (OSError, serial.SerialException):
                 connection = None
@@ -824,19 +878,21 @@ def serial_bridge_loop(config: dict, stop: threading.Event) -> None:
             retry_delay = min(15.0, retry_delay * 1.5)
             continue
         print(f"Found {port}; waiting for Lil Bot firmware handshake.")
-        handshake_deadline = time.monotonic() + 5.0
+        last_reply_at = time.monotonic()
         next_send = 0.0
         handshake = False
         try:
             while not stop.is_set():
                 now = time.monotonic()
                 if handshake and now >= next_send:
-                    connection.write(RUNTIME.wire_frame().encode("ascii"))
+                    connection.write(RUNTIME.wire_frame().encode("ascii", errors="replace"))
                     HEALTH["last_write"] = time.time()
                     next_send = now + interval
                 line = connection.readline().decode("utf-8", errors="replace").strip()
-                if line:
-                    if line.startswith(("READY:LILBOT/1", "HELLO:LILBOT/1")) and not handshake:
+                hello = line.startswith(("READY:LILBOT/1", "HELLO:LILBOT/1"))
+                if hello or (handshake and line.startswith(("ACK:", "TOUCH:"))):
+                    last_reply_at = time.monotonic()
+                    if not handshake:
                         handshake = True
                         retry_delay = 1.0
                         HEALTH["reconnects"] += 1
@@ -851,14 +907,16 @@ def serial_bridge_loop(config: dict, stop: threading.Event) -> None:
                         gesture = line.partition(":")[2].lower()
                         if gesture in {"tap", "double", "hold", "swipe_left", "swipe_right"}:
                             RUNTIME.touch_reaction(gesture)
-                if not handshake and now >= handshake_deadline:
-                    raise serial.SerialTimeoutException("firmware handshake timeout")
+                if time.monotonic() - last_reply_at >= 5.0:
+                    reason = "firmware heartbeat timeout" if handshake else "firmware handshake timeout"
+                    raise serial.SerialTimeoutException(reason)
                 stop.wait(0.01)
         except (OSError, serial.SerialException) as exc:
             HEALTH["last_error"] = str(exc)
             logging.warning("USB connection interrupted: %s", exc)
             print(f"Lil Bot display disconnected: {exc}")
-            RUNTIME.direct_reaction("error", 1.2, "USB display connection was interrupted", cooldown=float(config.get("emotion_director", {}).get("connection_cooldown_seconds", 60)), priority=85)
+            if handshake:
+                RUNTIME.direct_reaction("error", 1.2, "USB display connection was interrupted", cooldown=float(config.get("emotion_director", {}).get("connection_cooldown_seconds", 60)), priority=85)
         finally:
             connection.close()
             RUNTIME.device_status(False, reason=f"Lil Bot display disconnected from {port}")
@@ -908,6 +966,22 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self) -> None:
         route = urlparse(self.path).path
+        if route == "/api/shutdown":
+            if self.client_address[0] not in {"127.0.0.1", "::1"} or self.headers.get("X-LilBot-Control") != "1":
+                self.send_json({"error": "local control required"}, HTTPStatus.FORBIDDEN)
+                return
+            # Tell the supervisor to exit too, otherwise it would restart us.
+            if os.name == "nt":
+                ctypes.windll.kernel32.OpenEventW.restype = ctypes.c_void_p
+                ctypes.windll.kernel32.SetEvent.argtypes = [ctypes.c_void_p]
+                ctypes.windll.kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+                handle = ctypes.windll.kernel32.OpenEventW(2, False, "Local\\LilBotQuit")
+                if handle:
+                    ctypes.windll.kernel32.SetEvent(handle)
+                    ctypes.windll.kernel32.CloseHandle(handle)
+            self.send_json({"ok": True, "message": "Lil-Bot is stopping"})
+            threading.Thread(target=self.server.shutdown, daemon=True).start()
+            return
         if route == "/api/notification":
             count = RUNTIME.add_notification()
             with RUNTIME.lock:
@@ -995,6 +1069,7 @@ def main() -> int:
         print("\nStopping Lil Bot companion.")
     finally:
         stop.set()
+        serial_worker.join(timeout=3)
         server.server_close()
     return 0
 

@@ -4,7 +4,7 @@ const source = fs.readFileSync(__dirname + '/display-preview.html', 'utf8').matc
 new Function(source);
 const body = source.slice(source.indexOf('function presenceMotion'), source.indexOf('function render'));
 const motion = new Function(body + ';return presenceMotion;')();
-for (const state of ['idle','typing','browsing','cat','helper','showoff','crying','nervous','rage','gaming','browsing_fast','music','orc','halloween_happy']) {
+for (const state of ['idle','typing','browsing','cat','helper','showoff','crying','nervous','rage','gaming','browsing_fast','music','orc','halloween_happy','autumn_cozy','christmas_cozy','christmas_music']) {
   assert.deepStrictEqual(motion(4000, state, false), motion(4000, 'idle', false));
   for (let t = 0; t < 16000; t += 50) {
     const m = motion(t, state, false);
@@ -14,6 +14,21 @@ for (const state of ['idle','typing','browsing','cat','helper','showoff','crying
   assert.equal(motion(0, state, false, -1).x, -3);
 }
 assert.equal(motion(4000, 'sleep', false, 1).x, 0);
-for (const state of ['time','weather','halloween_countdown','launch_chrome'])
+for (const state of ['time','weather','halloween_countdown','christmas_countdown','launch_chrome'])
   assert.deepStrictEqual(motion(4000, state, false), {x:0,y:0});
 console.log('Preview syntax and shared presence motion passed');
+
+const countdownBody = source.slice(source.indexOf('function christmasCountdown('),
+                                   source.indexOf('function christmasFace('));
+const countdown = new Function(countdownBody + ';return christmasCountdown;')();
+for (const [year, month, day, text, label] of [
+  [2026, 10, 26, '29 DAYS', 'UNTIL CHRISTMAS'],
+  [2026, 11, 24, '1 DAY', 'UNTIL CHRISTMAS'],
+  [2026, 11, 25, 'MERRY', 'CHRISTMAS!'],
+  [2026, 11, 26, 'HOLIDAY', 'CHEER!'],
+  [2027, 0, 1, '358 DAYS', 'UNTIL CHRISTMAS'],
+  [2028, 1, 28, '301 DAYS', 'UNTIL CHRISTMAS'],
+]) {
+  assert.deepStrictEqual(countdown(new Date(year, month, day)), {text, label});
+}
+console.log('Christmas preview calendar boundaries passed');
